@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: keren-job
+    runtime: docker
+    repo: https://github.com/danieliyahu1/keren-job
+    branch: master
+    rootDir: .
+    plan: free
+    envVars:
+      - key: OPENCODE_BASE_URL
+        value: https://your-ngrok-url.ngrok-free.app
+        sync: false
+      - key: OPENCODE_AUTO_START
+        value: "false"
+        sync: false
