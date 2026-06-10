@@ -2,7 +2,7 @@ services:
   opencode:
     build:
       context: .
-      dockerfile: agent/Dockerfile
+      dockerfile: Dockerfile.opencode
     env_file:
       - .env
     networks:

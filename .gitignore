@@ -33,7 +33,7 @@ build/
 .vscode/
 .env
 /opencode.json
-.opencode/
+/.opencode/
 opencode-runtime/
 opencode-logs/
 .playwright-mcp/
