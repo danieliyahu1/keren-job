@@ -37,3 +37,4 @@ build/
 opencode-runtime/
 opencode-logs/
 .playwright-mcp/
+agent/.git/
