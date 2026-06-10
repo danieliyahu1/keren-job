@@ -1,0 +1,9 @@
+<div th:fragment="results">
+    <div th:each="job : ${jobs}" class="job-card">
+        <h3 th:text="${job.title}">Title</h3>
+        <p th:text="${job.company}">Company</p>
+        <p th:text="${job.location}">Location</p>
+        <p th:text="${job.descriptionSnippet}">Snippet</p>
+        <a th:href="${job.link}" target="_blank" rel="noopener noreferrer">View on LinkedIn</a>
+    </div>
+</div>

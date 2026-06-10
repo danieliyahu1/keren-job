@@ -1,0 +1,48 @@
+# Build output
+target/
+
+# Git
+.git/
+.gitattributes
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+.settings/
+.classpath
+.factorypath
+.project
+.springBeans
+.sts4-cache
+*.iws
+*.iml
+*.ipr
+
+# CI/CD
+.github/
+
+# OpenCode dev config (container uses opencode-container.json)
+.opencode/
+opencode.json
+opencode-runtime/
+opencode-logs/
+
+# Runtime logs
+*.log
+
+# Secrets (must not be baked into image)
+.env
+
+# Docker files (no recursive copy)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Playwright (host-specific binaries)
+.playwright-mcp/
+
+# Misc
+README.md
+HELP.md
+tablet-768px.png

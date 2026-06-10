@@ -1,0 +1,4 @@
+<div th:fragment="error" class="error-message">
+    <p th:text="${message} ?: 'Something went wrong. Please try again.'">Error</p>
+    <button class="retry-button" onclick="location.reload()">Try again</button>
+</div>

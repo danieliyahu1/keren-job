@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keren Job</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body>
+    <main>
+        <form hx-post="/api/search"
+              hx-target="#results"
+              hx-swap="innerHTML"
+              hx-indicator="#loading">
+            <textarea name="query"
+                      placeholder="Describe the job you are looking for..."
+                      rows="4"
+                      autofocus></textarea>
+            <button type="submit">Search</button>
+        </form>
+
+        <div id="loading" class="htmx-indicator">
+            <p>Looking for your next job&hellip;</p>
+        </div>
+
+        <div id="validation-message" hidden>
+            <p>Please describe the job you are looking for.</p>
+        </div>
+
+        <div id="results"></div>
+    </main>
+
+    <script>
+        var form = document.querySelector("form");
+        var button = form.querySelector("button");
+        var textarea = form.querySelector("textarea");
+        var validationMessage = document.getElementById("validation-message");
+
+        form.addEventListener("submit", function (event) {
+            if (textarea.value.trim() === "") {
+                event.preventDefault();
+                validationMessage.hidden = false;
+            }
+        });
+
+        textarea.addEventListener("input", function () {
+            validationMessage.hidden = true;
+        });
+
+        document.body.addEventListener("htmx:beforeRequest", function () {
+            button.disabled = true;
+            button.textContent = "Searching\u2026";
+        });
+
+        document.body.addEventListener("htmx:afterRequest", function () {
+            button.disabled = false;
+            button.textContent = "Search";
+        });
+    </script>
+</body>
+</html>

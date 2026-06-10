@@ -1,0 +1,25 @@
+services:
+  opencode:
+    build:
+      context: .
+      dockerfile: agent/Dockerfile
+    env_file:
+      - .env
+    networks:
+      - kerenjob-net
+
+  kerenjob:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - OPENCODE_BASE_URL=http://opencode:4096
+      - OPENCODE_AUTO_START=false
+    depends_on:
+      - opencode
+    networks:
+      - kerenjob-net
+
+networks:
+  kerenjob-net:
+    driver: bridge
