@@ -1,44 +1,49 @@
 # ==============================================================================
-# Stage 1: Build the Spring Boot fat JAR
+# OpenCode — headless server
+#
+# Runs `opencode serve` on port 4096.
+# Includes Playwright MCP for browser automation (linkedin-jobs skill).
 # ==============================================================================
-FROM eclipse-temurin:21-jdk-alpine AS build
+FROM node:lts-slim
 
-WORKDIR /build
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    xauth dbus-x11 \
+    gettext-base \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy Maven wrapper and POM first (better layer caching — deps change less often)
-COPY .mvn/ .mvn/
-COPY mvnw pom.xml ./
+RUN npm install -g opencode-ai
 
-# Download dependencies (cached unless pom.xml changes)
-RUN chmod +x mvnw && ./mvnw dependency:go-offline -B
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN npx -y @playwright/mcp@latest --version \
+    && npx -y playwright install --with-deps chromium
 
-# Copy source and build
-COPY src/ src/
-RUN ./mvnw package -DskipTests -B && \
-    mv target/*.jar target/app.jar
+RUN groupadd -r opencode && useradd -r -g opencode -d /home/opencode opencode \
+    && mkdir -p /home/opencode/.config/opencode \
+    && mkdir -p /home/opencode/.playwright-mcp \
+    && mkdir -p /home/opencode/.playwright-mcp-output \
+    && chown -R opencode:opencode /home/opencode \
+    && chown -R opencode:opencode /ms-playwright
 
-# ==============================================================================
-# Stage 2: Runtime image
-# ==============================================================================
-FROM eclipse-temurin:21-jre-alpine AS runtime
+COPY agent/opencode.json /home/opencode/.config/opencode/opencode.json
+RUN chown opencode:opencode /home/opencode/.config/opencode/opencode.json
 
-# Install runtime dependencies:
-#   tini — proper PID 1 / signal handling
-RUN apk add --no-cache tini
+COPY agent/.opencode/skills/ /home/opencode/.config/opencode/skills/
+RUN chown -R opencode:opencode /home/opencode/.config/opencode/skills/
 
-# Create non-root user for running the app
-RUN addgroup -S kerenjob && adduser -S kerenjob -G kerenjob
+RUN mkdir -p /home/opencode/workspace \
+    && chown opencode:opencode /home/opencode/workspace
 
-# Copy the fat JAR from the build stage
-COPY --from=build --chown=kerenjob:kerenjob /build/target/app.jar /app/app.jar
+COPY agent/opencode.json /home/opencode/workspace/opencode.json
+COPY agent/.opencode/ /home/opencode/workspace/.opencode/
+RUN chown -R opencode:opencode /home/opencode/workspace
 
-# Switch to non-root user
-USER kerenjob
-WORKDIR /app
+COPY opencode-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-EXPOSE 8080
+USER opencode
+WORKDIR /home/opencode/workspace
 
-# Use tini as PID 1
-ENTRYPOINT ["tini", "--"]
+EXPOSE 4096
 
-CMD ["java", "-Xms256m", "-Xmx512m", "-jar", "app.jar"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
