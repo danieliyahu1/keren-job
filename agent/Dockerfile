@@ -25,7 +25,7 @@ RUN groupadd -r opencode && useradd -r -g opencode -d /home/opencode opencode \
     && chown -R opencode:opencode /home/opencode \
     && chown -R opencode:opencode /ms-playwright
 
-COPY agent/container.json /home/opencode/.config/opencode/opencode.json
+COPY agent/opencode.json /home/opencode/.config/opencode/opencode.json
 RUN chown opencode:opencode /home/opencode/.config/opencode/opencode.json
 
 COPY agent/skills/ /home/opencode/.config/opencode/skills/
