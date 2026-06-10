@@ -7,4 +7,4 @@ for skills_dir in /home/opencode/.config/opencode/skills /home/opencode/workspac
   done
 done
 
-exec opencode serve --port 4096 --hostname 0.0.0.0
+exec opencode serve --port ${PORT:-4096} --hostname 0.0.0.0
