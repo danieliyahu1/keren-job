@@ -32,7 +32,7 @@ build/
 ### VS Code ###
 .vscode/
 .env
-opencode.json
+/opencode.json
 .opencode/
 opencode-runtime/
 opencode-logs/
