@@ -9,12 +9,13 @@
 </head>
 <body>
     <main>
+        <h1>Keren Job</h1>
+        <p class="headline">Describe your next job. I'll find it.</p>
         <form hx-post="/api/search"
               hx-target="#results"
               hx-swap="innerHTML"
               hx-indicator="#loading">
             <textarea name="query"
-                      placeholder="Describe the job you are looking for..."
                       rows="4"
                       autofocus></textarea>
             <button type="submit">Search</button>
