@@ -238,21 +238,6 @@ button:disabled {
     body {
         padding: 40px 32px 64px;
     }
-
-    form {
-        flex-direction: row;
-        align-items: flex-start;
-    }
-
-    textarea {
-        flex: 1;
-        min-height: 100px;
-    }
-
-    button {
-        width: auto;
-        flex-shrink: 0;
-    }
 }
 
 @media (min-width: 1024px) {
