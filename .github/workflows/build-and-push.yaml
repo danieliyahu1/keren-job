@@ -18,6 +18,11 @@ on:
       - deploy/**
   pull_request:
   workflow_dispatch:
+    inputs:
+      rebuild_opencode:
+        description: Rebuild and publish the opencode sidecar even if its inputs did not change
+        type: boolean
+        default: false
 
 concurrency:
   group: build-${{ github.ref }}
@@ -143,7 +148,7 @@ jobs:
 
       - uses: docker/metadata-action@v5
         id: opencode-meta
-        if: needs.changes.outputs.opencode == 'true'
+        if: needs.changes.outputs.opencode == 'true' || inputs.rebuild_opencode == true
         with:
           images: ${{ env.REGISTRY }}/${{ env.OPENCODE_IMAGE }}
           tags: |
@@ -152,7 +157,7 @@ jobs:
 
       - uses: docker/build-push-action@v6
         id: opencode
-        if: needs.changes.outputs.opencode == 'true'
+        if: needs.changes.outputs.opencode == 'true' || inputs.rebuild_opencode == true
         with:
           context: .
           file: Dockerfile.opencode
@@ -166,7 +171,7 @@ jobs:
       # The sidecar image is the one with real portability risk: it must install
       # Playwright's arm64 Chromium and reach `/global/health` as a non-root user.
       - name: Smoke test the opencode image
-        if: needs.changes.outputs.opencode == 'true'
+        if: needs.changes.outputs.opencode == 'true' || inputs.rebuild_opencode == true
         run: |
           REF="${REGISTRY}/${OPENCODE_IMAGE}:sha-${GITHUB_SHA}"
           docker run -d --name kerenjob-opencode-smoke \
@@ -182,11 +187,11 @@ jobs:
           docker exec kerenjob-opencode-smoke sh -c 'grep -q smoke-test /home/opencode/.config/opencode/skills/linkedin-jobs/SKILL.md'
 
       - name: Smoke test opencode logs
-        if: failure() && needs.changes.outputs.opencode == 'true'
+        if: failure() && (needs.changes.outputs.opencode == 'true' || inputs.rebuild_opencode == true)
         run: docker logs kerenjob-opencode-smoke
 
       - name: Clean up opencode smoke test
-        if: always() && needs.changes.outputs.opencode == 'true'
+        if: always() && (needs.changes.outputs.opencode == 'true' || inputs.rebuild_opencode == true)
         run: docker rm -f kerenjob-opencode-smoke || true
 
   update-manifest:
