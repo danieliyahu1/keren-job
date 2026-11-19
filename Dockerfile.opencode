@@ -20,6 +20,7 @@ RUN npx -y @playwright/mcp@latest --version \
 
 RUN groupadd -r opencode && useradd -r -g opencode -d /home/opencode opencode \
     && mkdir -p /home/opencode/.config/opencode \
+    && mkdir -p /home/opencode/.local/share/opencode \
     && mkdir -p /home/opencode/.playwright-mcp \
     && mkdir -p /home/opencode/.playwright-mcp-output \
     && chown -R opencode:opencode /home/opencode \

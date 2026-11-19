@@ -5,6 +5,10 @@ services:
       dockerfile: Dockerfile.opencode
     env_file:
       - .env
+    volumes:
+      # Persist opencode state (sessions, credentials) so the container keeps
+      # nothing on the host.
+      - opencode-data:/home/opencode/.local/share/opencode
     networks:
       - kerenjob-net
 
@@ -23,3 +27,6 @@ services:
 networks:
   kerenjob-net:
     driver: bridge
+
+volumes:
+  opencode-data:
