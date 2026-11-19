@@ -58,6 +58,8 @@ spec:
               cpu: 750m
               memory: 768Mi
           securityContext:
+            runAsUser: 10001
+            runAsGroup: 10001
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
@@ -121,8 +123,10 @@ spec:
               memory: 1200Mi
           # The image's entrypoint rewrites skill files under ~/.config at start,
           # so this container keeps a writable rootfs. It is still unprivileged:
-          # the image runs as the non-root `opencode` user with no capabilities.
+          # the image runs as the numeric non-root user below, with no capabilities.
           securityContext:
+            runAsUser: 10002
+            runAsGroup: 10002
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]

@@ -78,6 +78,12 @@ for (const [name, block] of [
   expect(block.includes("limits:"), `${name} needs resource limits`);
 }
 expect(appBlock.includes("livenessProbe:"), "app needs a livenessProbe");
+// Numeric UIDs: runAsNonRoot cannot verify a named USER, and Kubernetes refuses
+// to start the container when it cannot. These must match the Dockerfiles.
+expect(appBlock.includes("runAsUser: 10001"), "app must run as numeric UID 10001");
+expect(appBlock.includes("runAsGroup: 10001"), "app must run as numeric GID 10001");
+expect(opencodeBlock.includes("runAsUser: 10002"), "opencode must run as numeric UID 10002");
+expect(opencodeBlock.includes("runAsGroup: 10002"), "opencode must run as numeric GID 10002");
 
 expect(appBlock.includes("containerPort: 8080"), "app must listen on 8080");
 expect(appBlock.includes("containerPort: 9090"), "app must expose metrics on 9090");
