@@ -26,8 +26,10 @@ FROM eclipse-temurin:21-jre-alpine AS runtime
 #   tini — proper PID 1 / signal handling
 RUN apk add --no-cache tini
 
-# Create non-root user for running the app
-RUN addgroup -S kerenjob && adduser -S kerenjob -G kerenjob
+# Create non-root user for running the app. The UID/GID are explicit so the
+# Kubernetes pod can enforce `runAsNonRoot` with a numeric `runAsUser`; a named
+# user cannot be verified by the kubelet.
+RUN addgroup -S -g 10001 kerenjob && adduser -S -u 10001 -G kerenjob kerenjob
 
 # Copy the fat JAR from the build stage
 COPY --from=build --chown=kerenjob:kerenjob /build/target/app.jar /app/app.jar

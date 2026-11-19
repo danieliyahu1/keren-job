@@ -18,7 +18,7 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN npx -y @playwright/mcp@latest --version \
     && npx -y playwright install --with-deps chromium
 
-RUN groupadd -r opencode && useradd -r -g opencode -d /home/opencode opencode \
+RUN groupadd -r -g 10002 opencode && useradd -r -u 10002 -g opencode -d /home/opencode opencode \
     && mkdir -p /home/opencode/.config/opencode \
     && mkdir -p /home/opencode/.local/share/opencode \
     && mkdir -p /home/opencode/.playwright-mcp \
