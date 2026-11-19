@@ -20,6 +20,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -42,14 +44,17 @@ public class OpenCodeChatModel implements ChatModel {
 
     private final String baseUrl;
     private final int timeoutSeconds;
+    private final String password;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
     public OpenCodeChatModel(
             @Value("${app.opencode.base-url}") String baseUrl,
-            @Value("${app.opencode.timeout-seconds:600}") int timeoutSeconds) {
+            @Value("${app.opencode.timeout-seconds:600}") int timeoutSeconds,
+            @Value("${app.opencode.password:}") String password) {
         this.baseUrl = baseUrl;
         this.timeoutSeconds = timeoutSeconds;
+        this.password = password;
         this.httpClient = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
                 .connectTimeout(java.time.Duration.ofSeconds(timeoutSeconds))
@@ -92,8 +97,7 @@ public class OpenCodeChatModel implements ChatModel {
 
     public String createSession() {
         log.info("OpenCode creating new session via POST {}/api/session", baseUrl);
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/api/session"))
+        HttpRequest request = requestBuilder("/api/session")
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString("{}"))
                 .timeout(java.time.Duration.ofSeconds(timeoutSeconds))
@@ -128,8 +132,7 @@ public class OpenCodeChatModel implements ChatModel {
     public void deleteSession(String sessionId) {
         log.info("OpenCode deleting session sessionId='{}'", sessionId);
         try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(baseUrl + "/api/session/" + sessionId))
+            HttpRequest request = requestBuilder("/api/session/" + sessionId)
                     .DELETE()
                     .timeout(java.time.Duration.ofSeconds(timeoutSeconds))
                     .build();
@@ -148,8 +151,7 @@ public class OpenCodeChatModel implements ChatModel {
     private String sendMessage(String sessionId, String userText) {
         String previousMessageId = latestAssistantMessageId(sessionId);
         String body = buildPromptBody(userText);
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/api/session/" + sessionId + "/prompt"))
+        HttpRequest request = requestBuilder("/api/session/" + sessionId + "/prompt")
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .timeout(java.time.Duration.ofSeconds(timeoutSeconds))
@@ -205,8 +207,7 @@ public class OpenCodeChatModel implements ChatModel {
     }
 
     private void waitForIdle(String sessionId) {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/api/experimental/session/" + sessionId + "/wait"))
+        HttpRequest request = requestBuilder("/api/experimental/session/" + sessionId + "/wait")
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.noBody())
                 .timeout(java.time.Duration.ofSeconds(timeoutSeconds))
@@ -222,9 +223,8 @@ public class OpenCodeChatModel implements ChatModel {
     }
 
     private JsonNode latestAssistantMessage(String sessionId) {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/api/session/" + sessionId
-                        + "/message?type=assistant&order=desc&limit=1"))
+        HttpRequest request = requestBuilder("/api/session/" + sessionId
+                        + "/message?type=assistant&order=desc&limit=1")
                 .timeout(java.time.Duration.ofSeconds(timeoutSeconds))
                 .GET()
                 .build();
@@ -285,6 +285,16 @@ public class OpenCodeChatModel implements ChatModel {
             Thread.currentThread().interrupt();
             throw new RuntimeException("Interrupted while waiting for OpenCode response", e);
         }
+    }
+
+    private HttpRequest.Builder requestBuilder(String path) {
+        HttpRequest.Builder builder = HttpRequest.newBuilder().uri(URI.create(baseUrl + path));
+        if (password != null && !password.isBlank()) {
+            String credentials = "opencode:" + password;
+            builder.header("Authorization", "Basic " + Base64.getEncoder()
+                    .encodeToString(credentials.getBytes(StandardCharsets.UTF_8)));
+        }
+        return builder;
     }
 
     private HttpResponse<String> execute(HttpRequest request) {

@@ -13,9 +13,11 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -29,6 +31,7 @@ public class OpenCodeProcessManager {
     private final Path workingDirectory;
     private final int startupTimeoutSeconds;
     private final String baseUrl;
+    private final String password;
 
     private Process process;
 
@@ -38,13 +41,15 @@ public class OpenCodeProcessManager {
             @Value("${app.opencode.args:serve,--port,4096}") String args,
             @Value("${app.opencode.working-directory:opencode-runtime}") String workingDirectory,
             @Value("${app.opencode.startup-timeout-seconds:30}") int startupTimeoutSeconds,
-            @Value("${app.opencode.base-url:http://localhost:4096}") String baseUrl) {
+            @Value("${app.opencode.base-url:http://localhost:4096}") String baseUrl,
+            @Value("${app.opencode.password:}") String password) {
         this.autoStart = autoStart;
         this.command = command;
         this.args = parseArgs(args);
         this.workingDirectory = Path.of(workingDirectory).toAbsolutePath().normalize();
         this.startupTimeoutSeconds = startupTimeoutSeconds;
         this.baseUrl = baseUrl;
+        this.password = password;
     }
 
     @PostConstruct
@@ -125,12 +130,15 @@ public class OpenCodeProcessManager {
         while (System.currentTimeMillis() < deadline) {
             attempt++;
             try {
-                HttpRequest request = HttpRequest.newBuilder()
+                HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                         .uri(URI.create(baseUrl + "/api/info"))
                         .timeout(Duration.ofSeconds(3))
-                        .GET()
-                        .build();
-                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+                        .GET();
+                if (password != null && !password.isBlank()) {
+                    requestBuilder.header("Authorization", "Basic " + Base64.getEncoder()
+                            .encodeToString(("opencode:" + password).getBytes(StandardCharsets.UTF_8)));
+                }
+                HttpResponse<String> response = client.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
                 if (response.statusCode() == 200) {
                     log.info("OpenCode health check passed on attempt {} (HTTP {})", attempt, response.statusCode());
                     return true;

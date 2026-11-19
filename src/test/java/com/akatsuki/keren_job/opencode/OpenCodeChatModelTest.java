@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -22,6 +23,7 @@ class OpenCodeChatModelTest {
     private HttpServer server;
     private OpenCodeChatModel chatModel;
     private final List<String> promptBodies = new CopyOnWriteArrayList<>();
+    private final List<String> authorizationHeaders = new CopyOnWriteArrayList<>();
     private final AtomicInteger messageRequests = new AtomicInteger();
 
     @BeforeEach
@@ -29,6 +31,7 @@ class OpenCodeChatModelTest {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
 
         server.createContext("/api/session", exchange -> {
+            authorizationHeaders.add(exchange.getRequestHeaders().getFirst("Authorization"));
             String path = exchange.getRequestURI().getPath();
             String method = exchange.getRequestMethod();
 
@@ -65,7 +68,7 @@ class OpenCodeChatModelTest {
         server.start();
 
         String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
-        chatModel = new OpenCodeChatModel(baseUrl, 5);
+        chatModel = new OpenCodeChatModel(baseUrl, 5, "testpass");
     }
 
     @AfterEach
@@ -81,6 +84,16 @@ class OpenCodeChatModelTest {
         assertThat(response).isEqualTo("found jobs");
         assertThat(promptBodies).hasSize(1);
         assertThat(promptBodies.get(0)).contains("\"text\":\"hello\"");
+    }
+
+    @Test
+    @DisplayName("requests send Basic auth when a password is configured")
+    void requestsSendBasicAuth() {
+        chatModel.chat("ses_test", "hello");
+
+        String expected = "Basic " + Base64.getEncoder()
+                .encodeToString("opencode:testpass".getBytes(StandardCharsets.UTF_8));
+        assertThat(authorizationHeaders).isNotEmpty().allMatch(expected::equals);
     }
 
     @Test

@@ -21,6 +21,7 @@ services:
     environment:
       - OPENCODE_BASE_URL=http://opencode:4096
       - OPENCODE_AUTO_START=false
+      - OPENCODE_PASSWORD=${OPENCODE_PASSWORD}
     depends_on:
       - opencode
     networks:
