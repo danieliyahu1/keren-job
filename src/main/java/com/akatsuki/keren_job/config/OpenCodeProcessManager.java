@@ -126,7 +126,7 @@ public class OpenCodeProcessManager {
             attempt++;
             try {
                 HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(baseUrl + "/global/health"))
+                        .uri(URI.create(baseUrl + "/api/info"))
                         .timeout(Duration.ofSeconds(3))
                         .GET()
                         .build();
