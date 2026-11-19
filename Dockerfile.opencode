@@ -40,7 +40,10 @@ COPY agent/.opencode/ /home/opencode/workspace/.opencode/
 RUN chown -R opencode:opencode /home/opencode/workspace
 
 COPY opencode-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+# Normalize line endings: a Windows checkout can carry CRLF, which makes the
+# shebang unresolvable inside the container.
+RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh \
+    && chmod +x /usr/local/bin/docker-entrypoint.sh
 
 USER opencode
 WORKDIR /home/opencode/workspace
