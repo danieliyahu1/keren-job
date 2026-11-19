@@ -170,8 +170,6 @@ spec:
               mountPath: /dev/shm
             - name: opencode-tmp
               mountPath: /tmp
-            - name: opencode-workspace
-              mountPath: /home/opencode/workspace
             - name: opencode-state
               mountPath: /home/opencode/.local/share/opencode
             # Browser profile and screenshots. emptyDir: the LinkedIn session does
@@ -187,9 +185,6 @@ spec:
         - name: opencode-tmp
           emptyDir:
             sizeLimit: 64Mi
-        - name: opencode-workspace
-          emptyDir:
-            sizeLimit: 128Mi
         - name: opencode-state
           emptyDir:
             sizeLimit: 128Mi
