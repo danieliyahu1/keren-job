@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gettext-base \
     && rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g opencode-ai
+RUN npm install -g --allow-scripts=@opencode/cli @opencode/cli@2
 
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN npx -y @playwright/mcp@latest --version \
