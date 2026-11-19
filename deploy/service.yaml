@@ -1,0 +1,19 @@
+# Public application Service. The environment's routing layer (Cloudflare tunnel)
+# reaches this ClusterIP directly. The metrics port is deliberately absent: probes
+# and scraping use kerenjob-metrics, so nothing operational is publicly reachable.
+apiVersion: v1
+kind: Service
+metadata:
+  name: kerenjob
+  namespace: kerenjob
+  labels:
+    app: kerenjob
+    app.kubernetes.io/name: kerenjob
+spec:
+  type: ClusterIP
+  selector:
+    app: kerenjob
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

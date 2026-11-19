@@ -1,0 +1,23 @@
+# Tells the VictoriaMetrics operator to scrape the kerenjob metrics Service.
+# `jobLabel` makes the series carry `job="kerenjob"`, which is what the Grafana
+# dashboard filters on. The selector matches only the metrics Service
+# (label app.kubernetes.io/component: metrics), never the public Service.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: kerenjob
+  namespace: kerenjob
+  labels:
+    app.kubernetes.io/name: kerenjob
+    app.kubernetes.io/component: metrics
+spec:
+  jobLabel: app.kubernetes.io/name
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kerenjob
+      app.kubernetes.io/component: metrics
+  endpoints:
+    - port: metrics
+      path: /actuator/prometheus
+      interval: 20s
+      scrapeTimeout: 10s

@@ -1,0 +1,180 @@
+# kerenjob — one pod, two containers that belong together:
+#
+#   app       Spring Boot UI/API on 8080, operational endpoints on 9090.
+#   opencode  `opencode serve` on 4096: the agent runtime that drives Playwright
+#             and Chromium against LinkedIn. The app reaches it on loopback, which
+#             is why they share a pod instead of a Service.
+#
+# Both images are pinned to the triggering commit SHA and the registry digest.
+# The build-and-push workflow publishes them and rewrites these two lines, so the
+# deployed bytes are immutable while the source commit stays readable.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kerenjob
+  namespace: kerenjob
+  labels:
+    app: kerenjob
+    app.kubernetes.io/name: kerenjob
+spec:
+  replicas: 1
+  # Recreate, not RollingUpdate: a search holds a Chromium session in memory, and
+  # a second full pod (JVM + Chromium) during rollout is how a 12 GB node OOMs.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: kerenjob
+  template:
+    metadata:
+      labels:
+        app: kerenjob
+        app.kubernetes.io/name: kerenjob
+    spec:
+      # The pod never talks to the Kubernetes API, so no token is mounted.
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: ghcr.io/danieliyahu1/keren-job:sha-0000000000000000000000000000000000000000@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: metrics
+              containerPort: 9090
+          envFrom:
+            - configMapRef:
+                name: kerenjob-config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 384Mi
+            limits:
+              cpu: 750m
+              memory: 768Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          # Let the tunnel stop sending new requests before the listener closes.
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]
+          startupProbe:
+            httpGet: { path: /actuator/health/liveness, port: metrics }
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 24
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: metrics }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: metrics }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          volumeMounts:
+            - name: app-tmp
+              mountPath: /tmp
+
+        - name: opencode
+          image: ghcr.io/danieliyahu1/keren-job-opencode:sha-0000000000000000000000000000000000000000@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: opencode
+              containerPort: 4096
+          env:
+            # The entrypoint substitutes these into the linkedin-jobs skill file at
+            # startup; the values themselves never exist in Git or the image.
+            - name: LINKEDIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: kerenjob-secrets
+                  key: linkedin-email
+            - name: LINKEDIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kerenjob-secrets
+                  key: linkedin-password
+            - name: OPENCODE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: kerenjob-secrets
+                  key: opencode-api-key
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1200Mi
+          # The image's entrypoint rewrites skill files under ~/.config at start,
+          # so this container keeps a writable rootfs. It is still unprivileged:
+          # the image runs as the non-root `opencode` user with no capabilities.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          startupProbe:
+            httpGet: { path: /api/info, port: opencode }
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: { path: /api/info, port: opencode }
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          # No liveness probe on purpose: a browser session stalled behind
+          # LinkedIn must not be SIGKILLed mid-search. Readiness covers it.
+          volumeMounts:
+            # Chromium's shared memory. The 64 MB default makes it crash; this is
+            # memory-backed, so it is accounted against the container limit.
+            - name: dev-shm
+              mountPath: /dev/shm
+            - name: opencode-tmp
+              mountPath: /tmp
+            - name: opencode-workspace
+              mountPath: /home/opencode/workspace
+            - name: opencode-state
+              mountPath: /home/opencode/.local/share/opencode
+            # Browser profile and screenshots. emptyDir: the LinkedIn session does
+            # not survive a pod replacement, so a new pod logs in again.
+            - name: playwright-profile
+              mountPath: /home/opencode/.playwright-mcp
+            - name: playwright-output
+              mountPath: /home/opencode/.playwright-mcp-output
+      volumes:
+        - name: app-tmp
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: opencode-tmp
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: opencode-workspace
+          emptyDir:
+            sizeLimit: 128Mi
+        - name: opencode-state
+          emptyDir:
+            sizeLimit: 128Mi
+        - name: playwright-profile
+          emptyDir:
+            sizeLimit: 256Mi
+        - name: playwright-output
+          emptyDir:
+            sizeLimit: 128Mi
+        - name: dev-shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi

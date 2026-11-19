@@ -1,0 +1,181 @@
+# Application overview dashboard. The Grafana sidecar (enabled in the
+# observability stack) picks up any ConfigMap labelled `grafana_dashboard: "1"`,
+# so this lands in Grafana automatically and is versioned in Git.
+#
+# Every query targets a series this deployment actually produces:
+#   - http_server_requests_* / jvm_* / process_*  come from the Spring actuator
+#     scrape (VMServiceScrape -> kerenjob-metrics, job="kerenjob").
+#   - container_* / kube_pod_container_*          come from the platform's kubelet
+#     and kube-state-metrics scrapes, filtered by namespace.
+#
+# The opencode sidecar exports no Prometheus endpoint of its own, so its health is
+# represented by container readiness/restarts and by the app's request errors —
+# not invented metrics. Search duration comes from the public /api/search route.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kerenjob-dashboard
+  namespace: observability
+  labels:
+    grafana_dashboard: "1"
+data:
+  kerenjob-overview.json: |
+    {
+      "uid": "kerenjob-overview",
+      "title": "kerenjob / Overview",
+      "tags": ["kerenjob"],
+      "timezone": "UTC",
+      "editable": false,
+      "schemaVersion": 39,
+      "refresh": "30s",
+      "time": { "from": "now-6h", "to": "now" },
+      "templating": { "list": [] },
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "Requests",
+          "description": "All HTTP requests in the selected range.",
+          "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+          "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+          "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" }, "expr": "sum(increase(http_server_requests_seconds_count{job=\"kerenjob\"}[$__range])) or vector(0)", "legendFormat": "requests" }
+          ]
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "5xx error ratio",
+          "description": "Share of requests answered with a 5xx. A search that fails because LinkedIn or the model is unavailable lands here.",
+          "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+          "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+          "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 2, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 0.05 }, { "color": "red", "value": 0.2 } ] } }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" }, "expr": "sum(rate(http_server_requests_seconds_count{job=\"kerenjob\",status=~\"5..\"}[$__range])) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"kerenjob\"}[$__range])), 0.000001)", "legendFormat": "5xx" }
+          ]
+        },
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "p95 request duration",
+          "description": "95th percentile of request duration. A LinkedIn search is expected to take minutes; anything under the 100 s edge timeout is a red herring for the browser.",
+          "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+          "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+          "fieldConfig": { "defaults": { "unit": "s", "decimals": 1 }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" }, "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"kerenjob\"}[$__range]))) or vector(0)", "legendFormat": "p95" }
+          ]
+        },
+        {
+          "id": 4,
+          "type": "stat",
+          "title": "Containers ready",
+          "description": "Ready containers in the kerenjob pod. app serves HTTP; opencode is the agent runtime with Playwright/Chromium. Expect 2.",
+          "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+          "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+          "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "min": 0, "max": 2, "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "orange", "value": 1 }, { "color": "green", "value": 2 } ] } }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" }, "expr": "sum(kube_pod_container_status_ready{namespace=\"kerenjob\"}) or vector(0)", "legendFormat": "ready" }
+          ]
+        },
+        {
+          "id": 5,
+          "type": "timeseries",
+          "title": "Requests by status class",
+          "description": "Request rate split by response class. A search is a single POST /api/search, so a flat line is normal: the work happens inside one long request.",
+          "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+          "fieldConfig": { "defaults": { "unit": "reqps", "decimals": 2 }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" }, "expr": "sum by (status) (rate(http_server_requests_seconds_count{job=\"kerenjob\"}[$__rate_interval]))", "legendFormat": "{{status}}" }
+          ]
+        },
+        {
+          "id": 6,
+          "type": "timeseries",
+          "title": "Latency by route (p95)",
+          "description": "Per-route p95. /api/search is the LinkedIn agent; / is the form; /css and /favicon are static.",
+          "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+          "fieldConfig": { "defaults": { "unit": "s", "decimals": 1 }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" }, "expr": "histogram_quantile(0.95, sum by (le, uri) (rate(http_server_requests_seconds_bucket{job=\"kerenjob\"}[$__rate_interval])))", "legendFormat": "{{uri}}" }
+          ]
+        },
+        {
+          "id": 7,
+          "type": "timeseries",
+          "title": "Search duration",
+          "description": "Duration of POST /api/search through the OpenCode agent and the browser. This is the number the 100 s Cloudflare timeout is measured against.",
+          "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+          "fieldConfig": { "defaults": { "unit": "s", "decimals": 1 }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" }, "expr": "histogram_quantile(0.5, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"kerenjob\",uri=\"/api/search\"}[$__rate_interval])))", "legendFormat": "p50" },
+            { "refId": "B", "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" }, "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"kerenjob\",uri=\"/api/search\"}[$__rate_interval])))", "legendFormat": "p95" }
+          ]
+        },
+        {
+          "id": 8,
+          "type": "timeseries",
+          "title": "Container memory (working set)",
+          "description": "JVM and Chromium memory as the kubelet reports it. Chromium is the container most likely to hit its 1200Mi limit on a large LinkedIn page.",
+          "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+          "fieldConfig": { "defaults": { "unit": "bytes", "decimals": 0 }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" }, "expr": "container_memory_working_set_bytes{namespace=\"kerenjob\",container=~\"app|opencode\"}", "legendFormat": "{{container}}" }
+          ]
+        },
+        {
+          "id": 9,
+          "type": "timeseries",
+          "title": "Container CPU",
+          "description": "CPU per container. The VM has 2 vCPU shared with the whole platform, so sustained values here matter more than limits.",
+          "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 21 },
+          "fieldConfig": { "defaults": { "unit": "cores", "decimals": 3 }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" }, "expr": "rate(container_cpu_usage_seconds_total{namespace=\"kerenjob\",container=~\"app|opencode\"}[$__rate_interval])", "legendFormat": "{{container}}" }
+          ]
+        },
+        {
+          "id": 10,
+          "type": "timeseries",
+          "title": "Restarts",
+          "description": "Container restarts. A rising opencode count means Chromium is being OOM-killed; a rising app count points at the JVM or the liveness probe.",
+          "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 21 },
+          "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" }, "expr": "kube_pod_container_status_restarts_total{namespace=\"kerenjob\"}", "legendFormat": "{{container}}" }
+          ]
+        },
+        {
+          "id": 11,
+          "type": "timeseries",
+          "title": "JVM heap",
+          "description": "Heap used against the maximum the container limit allows. Sustained saturation here is what precedes the app's restart.",
+          "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 29 },
+          "fieldConfig": { "defaults": { "unit": "bytes", "decimals": 0 }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" }, "expr": "sum(jvm_memory_used_bytes{job=\"kerenjob\",area=\"heap\"})", "legendFormat": "used" },
+            { "refId": "B", "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" }, "expr": "sum(jvm_memory_max_bytes{job=\"kerenjob\",area=\"heap\"})", "legendFormat": "max" }
+          ]
+        },
+        {
+          "id": 12,
+          "type": "timeseries",
+          "title": "Process CPU",
+          "description": "JVM process CPU as a fraction of one core, from the actuator scrape.",
+          "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 29 },
+          "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 3 }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" }, "expr": "process_cpu_usage{job=\"kerenjob\"}", "legendFormat": "cpu" }
+          ]
+        }
+      ]
+    }

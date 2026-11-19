@@ -1,0 +1,19 @@
+# Internal metrics Service. It selects the same application pods but exposes only
+# the actuator port, and its `app.kubernetes.io/component: metrics` label is what
+# the VMServiceScrape below matches, so the public Service is never a scrape target.
+apiVersion: v1
+kind: Service
+metadata:
+  name: kerenjob-metrics
+  namespace: kerenjob
+  labels:
+    app.kubernetes.io/name: kerenjob
+    app.kubernetes.io/component: metrics
+spec:
+  type: ClusterIP
+  selector:
+    app: kerenjob
+  ports:
+    - name: metrics
+      port: 9090
+      targetPort: metrics

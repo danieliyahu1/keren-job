@@ -1,0 +1,19 @@
+# Non-secret configuration. Credentials (LinkedIn login, OpenCode API key) arrive
+# from OCI Vault through kerenjob-secrets; nothing secret belongs in Git.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kerenjob-config
+  namespace: kerenjob
+data:
+  PORT: "8080"
+  # Dedicated internal metrics/probes port. Never part of the public Service.
+  METRICS_PORT: "9090"
+  # The OpenCode server is the sidecar in the same pod, so it is reachable on
+  # loopback and is not started by the JVM (the sidecar owns its lifecycle).
+  OPENCODE_BASE_URL: http://127.0.0.1:4096
+  OPENCODE_AUTO_START: "false"
+  # A LinkedIn search through Playwright is slow; keep the client timeout and the
+  # MVC async timeout aligned.
+  OPENCODE_TIMEOUT_SECONDS: "600"
+  JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError
