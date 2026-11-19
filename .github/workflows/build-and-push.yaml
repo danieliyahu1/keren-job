@@ -176,13 +176,23 @@ jobs:
           REF="${REGISTRY}/${OPENCODE_IMAGE}:sha-${GITHUB_SHA}"
           docker run -d --name kerenjob-opencode-smoke \
             -e LINKEDIN_EMAIL=smoke-test -e LINKEDIN_PASSWORD=smoke-test \
-            -e OPENCODE_API_KEY=smoke-test \
+            -e OPENCODE_API_KEY=smoke-test -e OPENCODE_PASSWORD=smoke-test-password \
             -p 14096:4096 "${REF}"
+          code=000
           for _ in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:14096/api/info >/dev/null 2>&1; then break; fi
+            code=$(curl -s -o /dev/null -w '%{http_code}' -u opencode:smoke-test-password http://127.0.0.1:14096/api/info)
+            [ "$code" = 200 ] && break
             sleep 2
           done
-          echo "health: $(curl -fsS http://127.0.0.1:14096/api/info)"
+          anon=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:14096/api/info)
+          echo "authenticated /api/info: ${code}, anonymous: ${anon}"
+          if [ "${code}" != "200" ]; then
+            curl -s -u opencode:smoke-test-password http://127.0.0.1:14096/api/info
+            exit 1
+          fi
+          # The V2 server must always require auth; an open port here would mean a
+          # silently unauthenticated sidecar in the pod.
+          [ "${anon}" = "401" ] || { echo "expected anonymous /api/info to be 401"; exit 1; }
           docker exec kerenjob-opencode-smoke sh -c 'find /ms-playwright -name chrome -type f | head -n 1' | grep -q .
           docker exec kerenjob-opencode-smoke sh -c 'grep -q smoke-test /home/opencode/.config/opencode/skills/linkedin-jobs/SKILL.md'
 
