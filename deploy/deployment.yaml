@@ -50,6 +50,14 @@ spec:
           envFrom:
             - configMapRef:
                 name: kerenjob-config
+          env:
+            # The V2 server always requires HTTP Basic auth (user "opencode"), so
+            # the client shares the same password as the sidecar below.
+            - name: OPENCODE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kerenjob-secrets
+                  key: opencode-password
           resources:
             requests:
               cpu: 100m
@@ -114,6 +122,13 @@ spec:
                 secretKeyRef:
                   name: kerenjob-secrets
                   key: opencode-api-key
+            # The V2 server uses this as its HTTP Basic password instead of
+            # generating a random one at startup.
+            - name: OPENCODE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kerenjob-secrets
+                  key: opencode-password
           resources:
             requests:
               cpu: 100m
@@ -130,15 +145,21 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+          # The V2 server answers /api/info with 401 unless the request carries HTTP
+          # Basic auth (user "opencode", password OPENCODE_PASSWORD). A plain
+          # httpGet probe cannot send a secret, so the check runs inside the
+          # container and reads the password from its own environment.
           startupProbe:
-            httpGet: { path: /api/info, port: opencode }
+            exec:
+              command: ["/usr/local/bin/node", "-e", "fetch('http://127.0.0.1:4096/api/info',{headers:{authorization:'Basic '+Buffer.from('opencode:'+(process.env.OPENCODE_PASSWORD||'')).toString('base64')}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
             periodSeconds: 10
-            timeoutSeconds: 3
+            timeoutSeconds: 5
             failureThreshold: 30
           readinessProbe:
-            httpGet: { path: /api/info, port: opencode }
+            exec:
+              command: ["/usr/local/bin/node", "-e", "fetch('http://127.0.0.1:4096/api/info',{headers:{authorization:'Basic '+Buffer.from('opencode:'+(process.env.OPENCODE_PASSWORD||'')).toString('base64')}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
             periodSeconds: 10
-            timeoutSeconds: 3
+            timeoutSeconds: 5
             failureThreshold: 3
           # No liveness probe on purpose: a browser session stalled behind
           # LinkedIn must not be SIGKILLed mid-search. Readiness covers it.

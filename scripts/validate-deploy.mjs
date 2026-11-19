@@ -92,6 +92,22 @@ expect(opencodeBlock.includes("containerPort: 4096"), "opencode must listen on 4
 expect(opencodeBlock.includes("LINKEDIN_EMAIL"), "opencode must receive LINKEDIN_EMAIL");
 expect(opencodeBlock.includes("LINKEDIN_PASSWORD"), "opencode must receive LINKEDIN_PASSWORD");
 expect(opencodeBlock.includes("OPENCODE_API_KEY"), "opencode must receive OPENCODE_API_KEY");
+expect(
+  opencodeBlock.includes("OPENCODE_PASSWORD"),
+  "opencode must receive OPENCODE_PASSWORD (the V2 server always requires auth)",
+);
+expect(
+  appBlock.includes("OPENCODE_PASSWORD"),
+  "app must receive OPENCODE_PASSWORD to authenticate against the sidecar",
+);
+expect(
+  !/readinessProbe:\s*\n\s*httpGet: \{ path: \/api\/info/.test(opencodeBlock),
+  "opencode probes must authenticate, so they cannot be plain httpGet",
+);
+expect(
+  opencodeBlock.includes("127.0.0.1:4096/api/info"),
+  "opencode probes must check the authenticated /api/info endpoint",
+);
 expect(opencodeBlock.includes("mountPath: /dev/shm"), "opencode needs a /dev/shm volume for Chromium");
 expect(
   /- name: dev-shm[\s\S]*?medium: Memory/.test(deployment),
@@ -143,6 +159,7 @@ for (const key of [
   "k3s-01-kerenjob-linkedin-email",
   "k3s-01-kerenjob-linkedin-password",
   "k3s-01-kerenjob-opencode-api-key",
+  "k3s-01-kerenjob-opencode-password",
 ]) {
   expect(externalSecret.includes(key), `ExternalSecret must map vault entry ${key}`);
 }

@@ -47,14 +47,21 @@ The opencode image is rebuilt only when `Dockerfile.opencode`,
 `opencode-entrypoint.sh`, or `agent/**` change, because every rebuild is a fresh
 ~1 GB pull for a VM with no image garbage collection.
 
-Secrets never live in Git. `deploy/externalsecret.yaml` names three OCI Vault
+Secrets never live in Git. `deploy/externalsecret.yaml` names four OCI Vault
 entries and the `oci-vault` ClusterSecretStore resolves them at runtime:
 
 ```
 k3s-01-kerenjob-linkedin-email
 k3s-01-kerenjob-linkedin-password
 k3s-01-kerenjob-opencode-api-key
+k3s-01-kerenjob-opencode-password
 ```
+
+The OpenCode V2 server always requires HTTP Basic auth (user `opencode`). If
+`OPENCODE_PASSWORD` is empty it generates a random password that nothing can
+read, and every client and probe gets 401 — so the password is a required
+secret, shared by the server and the app, and the sidecar probes authenticate
+from inside the container.
 
 Public traffic arrives through the Cloudflare tunnel at
 `kerenjob.danieliyahu.com` → `kerenjob.kerenjob.svc.cluster.local:8080`. The
