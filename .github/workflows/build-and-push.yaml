@@ -134,7 +134,9 @@ jobs:
             if curl -fsS http://127.0.0.1:19090/actuator/health >/dev/null 2>&1; then break; fi
             sleep 2
           done
-          echo "health: $(curl -fsS http://127.0.0.1:19090/actuator/health)"
+          health=$(curl -fsS http://127.0.0.1:19090/actuator/health)
+          echo "health: ${health}"
+          echo "${health}" | grep -q '"status":"UP"'
           curl -fsS http://127.0.0.1:18080/ | grep -q 'Keren Job'
           curl -fsS http://127.0.0.1:19090/actuator/prometheus | grep -q '^jvm_memory_used_bytes'
 
