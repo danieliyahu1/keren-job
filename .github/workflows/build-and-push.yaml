@@ -26,7 +26,9 @@ on:
 
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: true
+  # Queue instead of cancel: a cancelled run never executes its tests, and a
+  # commit that was never tested must not look like one that passed.
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
@@ -52,6 +54,10 @@ jobs:
               - 'opencode-entrypoint.sh'
               - 'agent/**'
               - '.dockerignore'
+              # The recipe that builds and smoke-tests the sidecar is itself an
+              # input: changing it must rebuild and retest the image instead of
+              # skipping the only test that covers it.
+              - '.github/workflows/build-and-push.yaml'
 
   verify:
     runs-on: ubuntu-latest
@@ -171,7 +177,8 @@ jobs:
           cache-to: type=gha,mode=max,scope=opencode
 
       # The sidecar image is the one with real portability risk: it must install
-      # Playwright's arm64 Chromium and reach `/global/health` as a non-root user.
+      # Playwright's arm64 Chromium, ship both skills, substitute the LinkedIn
+      # credentials, and answer `/api/info` as a non-root user.
       - name: Smoke test the opencode image
         if: needs.changes.outputs.opencode == 'true' || inputs.rebuild_opencode == true
         run: |
@@ -180,23 +187,49 @@ jobs:
             -e LINKEDIN_EMAIL=smoke-test -e LINKEDIN_PASSWORD=smoke-test \
             -e OPENCODE_API_KEY=smoke-test -e OPENCODE_PASSWORD=smoke-test-password \
             -p 14096:4096 "${REF}"
+
+          # Poll until the server binds its port. A refused or reset connection
+          # (curl 7/56) means "not listening yet" and is the only failure worth
+          # retrying; any other curl error, or a container that exits, fails
+          # the step immediately instead of being masked by the loop.
           code=000
-          for _ in $(seq 1 60); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' -u opencode:smoke-test-password http://127.0.0.1:14096/api/info)
-            [ "$code" = 200 ] && break
+          for attempt in $(seq 1 60); do
+            status=$(docker inspect -f '{{.State.Status}}' kerenjob-opencode-smoke)
+            case "${status}" in
+              exited|dead)
+                echo "sidecar is '${status}' before answering /api/info" >&2
+                exit 1
+                ;;
+            esac
+            rc=0
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+              -u opencode:smoke-test-password http://127.0.0.1:14096/api/info) || rc=$?
+            if [ "${rc}" -eq 0 ]; then
+              if [ "${code}" = "200" ]; then break; fi
+            elif [ "${rc}" -ne 7 ] && [ "${rc}" -ne 56 ]; then
+              echo "probe failed with curl exit ${rc}, not retrying" >&2
+              exit 1
+            fi
             sleep 2
           done
-          anon=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:14096/api/info)
-          echo "authenticated /api/info: ${code}, anonymous: ${anon}"
           if [ "${code}" != "200" ]; then
-            curl -s -u opencode:smoke-test-password http://127.0.0.1:14096/api/info
+            echo "sidecar did not answer /api/info within 120s (last HTTP ${code})" >&2
             exit 1
           fi
+
+          anon=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:14096/api/info)
+          echo "authenticated /api/info: ${code}, anonymous: ${anon}"
           # The V2 server must always require auth; an open port here would mean a
           # silently unauthenticated sidecar in the pod.
-          [ "${anon}" = "401" ] || { echo "expected anonymous /api/info to be 401"; exit 1; }
+          [ "${anon}" = "401" ] || { echo "expected anonymous /api/info to be 401, got ${anon}" >&2; exit 1; }
+
           docker exec kerenjob-opencode-smoke sh -c 'find /ms-playwright -name chrome -type f | head -n 1' | grep -q .
+          # Both skills must ship, and the LinkedIn one must have received the
+          # credentials from the entrypoint's envsubst.
+          docker exec kerenjob-opencode-smoke sh -c 'test -s /home/opencode/.config/opencode/skills/linkedin-jobs/SKILL.md'
           docker exec kerenjob-opencode-smoke sh -c 'grep -q smoke-test /home/opencode/.config/opencode/skills/linkedin-jobs/SKILL.md'
+          docker exec kerenjob-opencode-smoke sh -c 'test -s /home/opencode/.config/opencode/skills/hiremetech-jobs/SKILL.md'
+          docker exec kerenjob-opencode-smoke sh -c 'grep -q "hiremetech.com/api/jobs/search" /home/opencode/.config/opencode/skills/hiremetech-jobs/SKILL.md'
 
       - name: Smoke test opencode logs
         if: failure() && (needs.changes.outputs.opencode == 'true' || inputs.rebuild_opencode == true)
