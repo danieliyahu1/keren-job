@@ -25,7 +25,15 @@ public class OpenCodeService {
 
     private String buildSearchPrompt(String query) {
         return """
-            Use the linkedin-jobs skill to search for jobs matching the following description.
+            Search for jobs matching the description below.
+
+            Platforms, in priority order:
+            1. hiremetech-jobs - the default. Public JSON API, no login, no browser.
+            2. linkedin-jobs - only when the query explicitly asks for LinkedIn, or when
+               HireMe returns an error, nothing, or fewer than 3 matches.
+
+            Return at most 3 strong matches. For each: title, company, location and work
+            mode, why it matches, and the full link. State which platform each match came from.
 
             Query: %s
 
