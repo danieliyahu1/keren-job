@@ -68,10 +68,8 @@ sequenceDiagram
 
     U->>UI: Describe the job
     UI->>APP: POST /api/search
-    APP->>APP: OpenCodeService builds the hiremetech-jobs prompt
-    APP->>OC: POST /api/session
-    OC-->>APP: session id
-    APP->>OC: POST /api/session/{id}/prompt
+    APP->>OC: create one session per browser
+    APP->>OC: POST prompt with the raw user text
     OC->>AG: run the agent loop in the background
     AG->>HM: search jobs (public JSON API)
     HM-->>AG: job listings
@@ -82,29 +80,43 @@ sequenceDiagram
         APP->>OC: GET newest assistant message
     end
 
+    alt the agent asks a question
+        OC-->>APP: question form
+        APP-->>UI: fragments/question (HTML)
+        U->>UI: fill in the form
+        UI->>APP: POST /api/search/answer
+        APP->>OC: reply with the answers
+        OC->>AG: agent continues
+    end
+
     OC-->>APP: final assistant text
-    APP->>OC: DELETE /api/session/{id}
     APP-->>UI: fragments/response (HTML)
     UI-->>U: up to 3 matches with links
 ```
 
-`ChatClient` is wired to `OpenCodeChatModel` (the `@Primary` `ChatModel`), which
-speaks the OpenCode V2 REST API directly. A call creates a fresh session, admits
-the prompt, waits for the newest assistant message to finish, reads its text,
-and deletes the session in a `finally` block.
+The app keeps **one** OpenCode session per browser, so follow-up questions can
+reuse the same conversation. The prompt is the raw text the user typed; the
+behaviour instructions live with the agent. When the agent asks a question, the
+app returns `fragments/question`, an HTML form, and the answers are sent back
+through `POST /api/search/answer`.
+
+`OpenCodeAgentClient` speaks the OpenCode V2 REST API directly: it creates the
+session, prompts it, polls until the newest assistant message is finished,
+turns any pending question into a form, and replies with the answers. Behavior
+instructions live in `agent/AGENTS.md`, not in the Java code.
 
 ## Project layout
 
 ```
 src/main/java/com/akatsuki/keren_job/
 ├── controller/         HomeController, SearchController, GlobalExceptionHandler
-├── service/            OpenCodeService — prompt building and ChatClient calls
-├── opencode/           OpenCodeChatModel — OpenCode V2 REST client
+├── service/            search orchestration and form handling
+├── opencode/           OpenCodeAgentClient — sessions, prompts, polling, forms, replies
 └── config/             ChatClientConfig, OpenCodeProcessManager (local auto-start)
 src/main/resources/
 ├── templates/          Thymeleaf index and HTMX fragments
 └── application.properties
-agent/                  opencode.json and the hiremetech-jobs skill
+agent/                  opencode.json, AGENTS.md and the hiremetech-jobs skill
 deploy/                 namespace, Deployment, Services, ConfigMap, ExternalSecret,
                         VMServiceScrape, Grafana dashboard
 scripts/                manifest pinning and delivery-contract validation
@@ -207,3 +219,6 @@ URL can spend your model quota.
   whole search. There is no fallback board.
 - `Dockerfile.opencode` installs the OpenCode CLI without a version pin, so a
   rebuild follows upstream releases. Pin it if you need reproducible rebuilds.
+- A session lives as long as the browser session: 30 minutes idle resets it.
+- A pending question blocks a new search until it is answered.
+- Two tabs share one session, so only one search can run at a time.
