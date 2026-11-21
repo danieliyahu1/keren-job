@@ -1,6 +1,7 @@
 package com.akatsuki.keren_job.service;
 
 import com.akatsuki.keren_job.opencode.OpenCodeAgentClient;
+import com.akatsuki.keren_job.opencode.OpenCodeAgentClient.Form;
 import com.akatsuki.keren_job.opencode.OpenCodeAgentClient.Outcome;
 import jakarta.servlet.http.HttpSession;
 import lombok.extern.slf4j.Slf4j;
@@ -42,9 +43,10 @@ public class OpenCodeService {
         if (query == null || query.isBlank()) {
             throw new IllegalArgumentException("query must not be blank");
         }
-        if (isBusy(http) || pendingFormId(http) != null) {
+        if (isBusy(http)) {
             throw new IllegalStateException(ALREADY_RUNNING);
         }
+        dismissPendingQuestion(http);
 
         http.setAttribute(ATTR_BUSY, Boolean.TRUE);
         try {
@@ -53,6 +55,29 @@ public class OpenCodeService {
         } finally {
             http.setAttribute(ATTR_BUSY, Boolean.FALSE);
         }
+    }
+
+    /** The form the agent is waiting on, or {@code null}. */
+    public Form pendingForm(HttpSession http) {
+        String formId = pendingFormId(http);
+        String sessionId = (String) http.getAttribute(ATTR_SESSION_ID);
+        if (formId == null || sessionId == null) {
+            return null;
+        }
+        return agent.form(sessionId, formId);
+    }
+
+    private void dismissPendingQuestion(HttpSession http) {
+        String formId = pendingFormId(http);
+        if (formId == null) {
+            return;
+        }
+        String sessionId = (String) http.getAttribute(ATTR_SESSION_ID);
+        if (sessionId != null) {
+            log.info("Dismissing the pending question formId='{}' for a new search", formId);
+            agent.cancelForm(sessionId, formId);
+        }
+        http.removeAttribute(ATTR_FORM_ID);
     }
 
     /** Replies to the agent's pending form and waits for the next answer or question. */

@@ -1,5 +1,7 @@
 package com.akatsuki.keren_job.controller;
 
+import com.akatsuki.keren_job.opencode.OpenCodeAgentClient.Field;
+import com.akatsuki.keren_job.opencode.OpenCodeAgentClient.Form;
 import com.akatsuki.keren_job.opencode.OpenCodeAgentClient.Outcome;
 import com.akatsuki.keren_job.service.OpenCodeService;
 import jakarta.servlet.http.HttpSession;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -21,6 +24,7 @@ import java.util.Map;
 class SearchController {
 
     private static final String FORM_ID_PARAM = "__formId";
+    private static final String CUSTOM_PREFIX = "__custom_";
 
     private final OpenCodeService openCodeService;
 
@@ -49,7 +53,7 @@ class SearchController {
 
     @PostMapping("/api/search/answer")
     String answer(@RequestParam MultiValueMap<String, String> fields, HttpSession session, Model model) {
-        Map<String, Object> values = toAnswer(fields);
+        Map<String, Object> values = toAnswer(fields, openCodeService.pendingForm(session));
         log.info("Form answer submitted for keys={}", values.keySet());
 
         try {
@@ -74,10 +78,11 @@ class SearchController {
         };
     }
 
-    private static Map<String, Object> toAnswer(MultiValueMap<String, String> fields) {
+    private static Map<String, Object> toAnswer(MultiValueMap<String, String> fields, Form form) {
         Map<String, Object> values = new LinkedHashMap<>();
         fields.forEach((key, rawValues) -> {
-            if (FORM_ID_PARAM.equals(key) || rawValues == null || rawValues.isEmpty()) {
+            if (FORM_ID_PARAM.equals(key) || key.startsWith(CUSTOM_PREFIX)
+                    || rawValues == null || rawValues.isEmpty()) {
                 return;
             }
             if (rawValues.size() > 1) {
@@ -86,7 +91,37 @@ class SearchController {
                 values.put(key, toScalar(rawValues.get(0)));
             }
         });
+
+        if (form != null) {
+            for (Field field : form.fields()) {
+                String custom = firstNonBlank(fields.get(CUSTOM_PREFIX + field.key()));
+                if (custom == null) {
+                    continue;
+                }
+                if ("multiselect".equals(field.type())) {
+                    List<String> combined = new ArrayList<>();
+                    Object existing = values.get(field.key());
+                    if (existing instanceof List<?> list) {
+                        list.forEach(value -> combined.add(String.valueOf(value)));
+                    } else if (existing != null) {
+                        combined.add(String.valueOf(existing));
+                    }
+                    combined.add(custom);
+                    values.put(field.key(), combined);
+                } else {
+                    values.put(field.key(), custom);
+                }
+            }
+        }
         return values;
+    }
+
+    private static String firstNonBlank(List<String> values) {
+        if (values == null) {
+            return null;
+        }
+        return values.stream().filter(value -> value != null && !value.isBlank())
+                .findFirst().orElse(null);
     }
 
     private static Object toScalar(String value) {

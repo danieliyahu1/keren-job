@@ -28,6 +28,7 @@ class OpenCodeAgentClientTest {
 
     private final List<String> promptBodies = new CopyOnWriteArrayList<>();
     private final List<String> formReplyBodies = new CopyOnWriteArrayList<>();
+    private final List<String> cancelledForms = new CopyOnWriteArrayList<>();
     private final List<String> authorizationHeaders = new CopyOnWriteArrayList<>();
 
     private volatile String createdSessionId = "ses_test";
@@ -137,6 +138,23 @@ class OpenCodeAgentClientTest {
     }
 
     @Test
+    @DisplayName("a form can be read by id")
+    void formLookup() {
+        formJson = """
+                {"id":"form_1","title":"Which role?","fields":[
+                  {"key":"role","title":"Role","type":"string","options":[],"required":false,"custom":true}
+                ]}
+                """;
+
+        Form form = client.form("ses_test", "form_1");
+
+        assertThat(form).isNotNull();
+        assertThat(form.id()).isEqualTo("form_1");
+        assertThat(form.fields()).hasSize(1);
+        assertThat(form.fields().get(0).custom()).isTrue();
+    }
+
+    @Test
     @DisplayName("a 404 on prompt signals that the session must be recreated")
     void prompt404SignalsRecreate() {
         promptStatus = 404;
@@ -183,6 +201,15 @@ class OpenCodeAgentClientTest {
             } else {
                 send(exchange, 200, "{\"data\":[]}");
             }
+            return;
+        }
+        if ("GET".equals(method) && path.matches(".*/form/[^/]+$")) {
+            send(exchange, 200, "{\"data\":" + formJson + "}");
+            return;
+        }
+        if ("DELETE".equals(method) && path.matches(".*/form/[^/]+$")) {
+            cancelledForms.add(path);
+            send(exchange, 204, "");
             return;
         }
         if ("POST".equals(method) && path.contains("/form/") && path.endsWith("/reply")) {

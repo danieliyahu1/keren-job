@@ -220,5 +220,5 @@ URL can spend your model quota.
 - `Dockerfile.opencode` installs the OpenCode CLI without a version pin, so a
   rebuild follows upstream releases. Pin it if you need reproducible rebuilds.
 - A session lives as long as the browser session: 30 minutes idle resets it.
-- A pending question blocks a new search until it is answered.
+- A new search dismisses a pending question and starts a fresh turn.
 - Two tabs share one session, so only one search can run at a time.

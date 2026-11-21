@@ -113,15 +113,21 @@ class OpenCodeServiceTest {
     }
 
     @Test
-    @DisplayName("a pending question rejects another search")
-    void pendingQuestionRejectsAnotherSearch() {
+    @DisplayName("a new search dismisses the pending question instead of blocking")
+    void pendingQuestionIsDismissedForANewSearch() {
+        session.setAttribute(OpenCodeService.ATTR_SESSION_ID, "ses_1");
         session.setAttribute(OpenCodeService.ATTR_FORM_ID, "form_1");
+        session.setAttribute(OpenCodeService.ATTR_LAST_USED, System.currentTimeMillis());
 
-        assertThatThrownBy(() -> openCodeService.search(session, "find jobs"))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("A search is already running in another tab.");
+        when(agent.latestAssistantMessageId("ses_1")).thenReturn("msg_1");
+        when(agent.await("ses_1", "msg_1")).thenReturn(new Outcome.Answer("fresh results"));
 
-        verifyNoInteractions(agent);
+        Outcome outcome = openCodeService.search(session, "find jobs");
+
+        assertThat(outcome).isEqualTo(new Outcome.Answer("fresh results"));
+        verify(agent).cancelForm("ses_1", "form_1");
+        verify(agent).prompt("ses_1", "find jobs");
+        assertThat(OpenCodeService.pendingFormId(session)).isNull();
     }
 
     @Test

@@ -216,6 +216,48 @@ public class OpenCodeAgentClient {
         }
     }
 
+    /** Reads one form by id, or {@code null} when it is no longer pending. */
+    public Form form(String sessionId, String formId) {
+        HttpRequest request = requestBuilder("/api/session/" + sessionId + "/form/" + formId)
+                .timeout(java.time.Duration.ofSeconds(timeoutSeconds))
+                .GET()
+                .build();
+
+        HttpResponse<String> response = execute(request);
+        if (response.statusCode() == 404) {
+            return null;
+        }
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            log.debug("OpenCode GET /api/session/{}/form/{} -> HTTP {}",
+                    sessionId, formId, response.statusCode());
+            return null;
+        }
+
+        try {
+            JsonNode data = objectMapper.readTree(response.body()).path("data");
+            return data.isMissingNode() || data.isNull() ? null : parseForm(data);
+        } catch (JacksonException e) {
+            log.warn("Failed to parse OpenCode form '{}': {}", formId, e.getMessage());
+            return null;
+        }
+    }
+
+    /** Dismisses a pending form. Best effort: a form that is already gone is not an error. */
+    public void cancelForm(String sessionId, String formId) {
+        HttpRequest request = requestBuilder("/api/session/" + sessionId + "/form/" + formId)
+                .DELETE()
+                .timeout(java.time.Duration.ofSeconds(timeoutSeconds))
+                .build();
+        try {
+            HttpResponse<String> response = execute(request);
+            log.info("OpenCode DELETE /api/session/{}/form/{} -> HTTP {}",
+                    sessionId, formId, response.statusCode());
+        } catch (RuntimeException e) {
+            log.warn("OpenCode form cancel failed sessionId='{}' formId='{}': {}",
+                    sessionId, formId, e.getMessage());
+        }
+    }
+
     public void reply(String sessionId, String formId, Map<String, Object> answer) {
         String body = buildJson(Map.of("answer", answer == null ? Map.of() : answer));
         HttpRequest request = requestBuilder("/api/session/" + sessionId + "/form/" + formId + "/reply")

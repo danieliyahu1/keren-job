@@ -15,7 +15,7 @@
                     <input type="radio"
                            th:name="${f.key}"
                            th:value="${o.value}"
-                           th:required="${f.required}">
+                           th:required="${f.required and not f.custom}">
                     <span th:text="${o.label}">Option</span>
                 </label>
             </th:block>
@@ -48,6 +48,12 @@
                    th:name="${f.key}"
                    th:required="${f.required}"
                    th:attr="aria-label=${f.title}">
+
+            <input th:if="${f.custom and f.options != null and not #lists.isEmpty(f.options)}"
+                   type="text"
+                   th:name="${'__custom_' + f.key}"
+                   placeholder="Other (free text)"
+                   th:attr="aria-label=${'Other answer for ' + f.title}">
         </div>
 
         <button type="submit">Answer</button>

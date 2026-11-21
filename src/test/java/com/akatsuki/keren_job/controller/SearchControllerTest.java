@@ -167,6 +167,29 @@ class SearchControllerTest {
         }
 
         @Test
+        @DisplayName("a custom answer overrides the selected option and is not sent as a field")
+        void customAnswerOverridesSelectedOption() throws Exception {
+            Form form = new Form("form_1", "Which role?", List.of(
+                    new Field("role", "Role", null, "string",
+                            List.of(new Option("dev", "Developer")), false, true)));
+            when(openCodeService.pendingForm(any())).thenReturn(form);
+            when(openCodeService.answer(any(), any())).thenReturn(new Outcome.Answer("ok"));
+
+            mockMvc.perform(post("/api/search/answer")
+                            .session(session)
+                            .param("__formId", "form_1")
+                            .param("role", "dev")
+                            .param("__custom_role", "DevOps engineer"))
+                    .andExpect(status().isOk());
+
+            ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
+            verify(openCodeService).answer(any(), captor.capture());
+            assertThat(captor.getValue())
+                    .containsEntry("role", "DevOps engineer")
+                    .doesNotContainKey("__custom_role");
+        }
+
+        @Test
         @DisplayName("returns the error fragment when there is no pending question")
         void noQuestionReturnsErrorFragment() throws Exception {
             when(openCodeService.answer(any(), any()))

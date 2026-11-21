@@ -26,7 +26,7 @@ class QuestionTemplateTest {
         Form form = new Form("form_1", "Which role?", List.of(
                 new Field("role", "Role", "Pick one", "string",
                         List.of(new Option("backend", "Backend"), new Option("frontend", "Frontend")),
-                        true, false),
+                        true, true),
                 new Field("notes", "Notes", null, "string", List.of(), false, true)));
 
         String html = render(form);
@@ -39,6 +39,7 @@ class QuestionTemplateTest {
                 .contains("value=\"form_1\"")
                 .contains("name=\"role\"")
                 .contains("value=\"backend\"")
+                .contains("name=\"__custom_role\"")
                 .contains("name=\"notes\"");
     }
 
