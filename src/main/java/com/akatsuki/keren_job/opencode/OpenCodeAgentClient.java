@@ -339,18 +339,27 @@ public class OpenCodeAgentClient {
     }
 
     private void waitForIdle(String sessionId) {
+        // A short timeout keeps the turn inside its own 600 s budget: `/wait` blocks
+        // while the model is busy, so a stuck provider must return to the poll loop
+        // instead of parking the request thread for the full timeout.
         HttpRequest request = requestBuilder("/api/experimental/session/" + sessionId + "/wait")
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.noBody())
-                .timeout(java.time.Duration.ofSeconds(timeoutSeconds))
+                .timeout(java.time.Duration.ofSeconds(Math.min(10, timeoutSeconds)))
                 .build();
 
         try {
-            HttpResponse<String> response = execute(request);
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             log.trace("OpenCode POST /api/experimental/session/{}/wait → HTTP {}",
                     sessionId, response.statusCode());
-        } catch (RuntimeException e) {
+        } catch (HttpTimeoutException e) {
+            // Still busy: the caller's loop decides whether the turn is over budget.
+            log.trace("OpenCode session '{}' is still busy", sessionId);
+        } catch (IOException e) {
             log.debug("OpenCode session wait failed sessionId='{}': {}", sessionId, e.getMessage());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interrupted while waiting for OpenCode", e);
         }
     }
 
