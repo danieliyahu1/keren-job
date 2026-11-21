@@ -224,10 +224,7 @@ jobs:
           [ "${anon}" = "401" ] || { echo "expected anonymous /api/info to be 401, got ${anon}" >&2; exit 1; }
 
           docker exec kerenjob-opencode-smoke sh -c 'find /ms-playwright -name chrome -type f | head -n 1' | grep -q .
-          # Both skills must ship, and the LinkedIn one must have received the
-          # credentials from the entrypoint's envsubst.
-          docker exec kerenjob-opencode-smoke sh -c 'test -s /home/opencode/.config/opencode/skills/linkedin-jobs/SKILL.md'
-          docker exec kerenjob-opencode-smoke sh -c 'grep -q smoke-test /home/opencode/.config/opencode/skills/linkedin-jobs/SKILL.md'
+          # The HireMe skill must ship in the image.
           docker exec kerenjob-opencode-smoke sh -c 'test -s /home/opencode/.config/opencode/skills/hiremetech-jobs/SKILL.md'
           docker exec kerenjob-opencode-smoke sh -c 'grep -q "hiremetech.com/api/jobs/search" /home/opencode/.config/opencode/skills/hiremetech-jobs/SKILL.md'
 
