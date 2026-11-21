@@ -2,12 +2,11 @@
 
 [![build-and-push](https://github.com/danieliyahu1/keren-job/actions/workflows/build-and-push.yaml/badge.svg)](https://github.com/danieliyahu1/keren-job/actions/workflows/build-and-push.yaml)
 
-Describe a job in plain language; an agent logs into LinkedIn, searches, and
-returns matches.
+Describe a job in plain language; an agent searches HireMe and returns matches.
 
 One pod, two containers: a Spring Boot UI/API and a headless OpenCode agent
-runtime with Playwright and Chromium. The app never scrapes LinkedIn itself — it
-asks the agent, and the agent drives the browser.
+runtime. The app never searches a job board itself — it asks the agent, and the
+agent calls HireMe's public JSON API. The image carries no browser.
 
 ## Architecture
 
@@ -22,10 +21,8 @@ flowchart TB
 
         subgraph pod["Pod kerenjob · 1 replica · Recreate"]
             app["app container<br/>Spring Boot 4 · Java 21<br/>:8080 UI/API · :9090 actuator"]
-            oc["opencode container<br/>opencode serve :4096<br/>Playwright MCP"]
-            chromium["Chromium<br/>browser"]
+            oc["opencode container<br/>opencode serve :4096<br/>HireMe skill"]
             app -->|"REST + Basic auth<br/>127.0.0.1:4096"| oc
-            oc --> chromium
         end
 
         ext["ExternalSecret<br/>kerenjob-secrets"]
@@ -38,20 +35,20 @@ flowchart TB
     end
 
     model["OpenCode model<br/>longcat-2.5-free"]
-    linkedin(("LinkedIn"))
+    hireme["HireMe API<br/>hiremetech.com/api/jobs"]
 
     user -->|"HTTPS"| cf
     cf -->|"HTTP :8080"| svc
     svc --> app
-    vault -.->|"4 secrets"| ext
-    chromium -->|"Playwright automation"| linkedin
+    vault -.->|"2 secrets"| ext
     oc -->|"model calls"| model
+    oc -->|"public JSON API"| hireme
 ```
 
 | Container | Image | Role |
 |---|---|---|
 | `app` | `ghcr.io/danieliyahu1/keren-job` | Spring Boot 4 UI/API on `:8080`; operational endpoints on `:9090` |
-| `opencode` | `ghcr.io/danieliyahu1/keren-job-opencode` | `opencode serve` on `:4096`: the agent runtime, Playwright MCP and Chromium |
+| `opencode` | `ghcr.io/danieliyahu1/keren-job-opencode` | `opencode serve` on `:4096`: the agent runtime with the `hiremetech-jobs` skill |
 
 The containers share a pod so the app can reach OpenCode on loopback
 (`http://127.0.0.1:4096`); the port is never exposed through a Service. Both
@@ -66,18 +63,18 @@ sequenceDiagram
     participant UI as Browser (htmx)
     participant APP as Spring Boot app
     participant OC as OpenCode V2 server
-    participant AG as Agent + Playwright MCP
-    participant LI as LinkedIn
+    participant AG as Agent + HireMe skill
+    participant HM as HireMe API
 
     U->>UI: Describe the job
     UI->>APP: POST /api/search
-    APP->>APP: OpenCodeService builds the linkedin-jobs prompt
+    APP->>APP: OpenCodeService builds the hiremetech-jobs prompt
     APP->>OC: POST /api/session
     OC-->>APP: session id
     APP->>OC: POST /api/session/{id}/prompt
     OC->>AG: run the agent loop in the background
-    AG->>LI: log in, search jobs, scan results
-    LI-->>AG: job listings
+    AG->>HM: search jobs (public JSON API)
+    HM-->>AG: job listings
     AG-->>OC: assistant message
 
     loop poll every 500 ms until finished
@@ -108,12 +105,12 @@ src/main/java/com/akatsuki/keren_job/
 src/main/resources/
 ├── templates/          Thymeleaf index and HTMX fragments
 └── application.properties
-agent/                  opencode.json, MCP config and the linkedin-jobs skill
+agent/                  opencode.json and the hiremetech-jobs skill
 deploy/                 namespace, Deployment, Services, ConfigMap, ExternalSecret,
                         VMServiceScrape, Grafana dashboard
 scripts/                manifest pinning and delivery-contract validation
 Dockerfile              multi-stage build for the Spring Boot app
-Dockerfile.opencode     OpenCode + Playwright + Chromium sidecar
+Dockerfile.opencode     OpenCode sidecar (no browser)
 ```
 
 ## Run locally
@@ -131,7 +128,6 @@ docker compose up --build
 
 | Variable | Used by | Meaning |
 |---|---|---|
-| `LINKEDIN_EMAIL`, `LINKEDIN_PASSWORD` | opencode | Substituted into the `linkedin-jobs` skill at container start |
 | `OPENCODE_API_KEY` | opencode | Credential for the free `opencode/*` model in `agent/opencode.json` |
 | `OPENCODE_PASSWORD` | both | Shared HTTP Basic password for the OpenCode V2 server (user `opencode`) |
 | `OPENCODE_BASE_URL` | app | Where the app reaches the OpenCode server |
@@ -173,16 +169,14 @@ flowchart LR
    into `deploy/deployment.yaml`.
 2. Argo reconciles the cluster to that commit.
 
-The opencode image is rebuilt only when `Dockerfile.opencode`,
-`opencode-entrypoint.sh`, or `agent/**` change, because every rebuild is a fresh
-~1 GB pull for a VM with no image garbage collection.
+The opencode image is rebuilt only when its inputs change
+(`Dockerfile.opencode`, `opencode-entrypoint.sh`, `agent/**`, or the workflow
+that builds and smoke-tests it), so app-only commits do not republish it.
 
-Secrets never live in Git. `deploy/externalsecret.yaml` names four OCI Vault
+Secrets never live in Git. `deploy/externalsecret.yaml` names two OCI Vault
 entries and the `oci-vault` ClusterSecretStore resolves them at runtime:
 
 ```
-k3s-01-kerenjob-linkedin-email
-k3s-01-kerenjob-linkedin-password
 k3s-01-kerenjob-opencode-api-key
 k3s-01-kerenjob-opencode-password
 ```
@@ -196,7 +190,7 @@ from inside the container.
 Public traffic arrives through the Cloudflare tunnel at
 `kerenjob.danieliyahu.com` → `kerenjob.kerenjob.svc.cluster.local:8080`. The
 service is intentionally public (no Access policy), which means anyone with the
-URL can spend your LinkedIn session and model quota.
+URL can spend your model quota.
 
 ## Monitoring
 
@@ -210,10 +204,7 @@ URL can spend your LinkedIn session and model quota.
   requests at 100 s; the POST completes server-side and shows up in the logs and
   the `kerenjob / Overview` dashboard, but the client gets a 524. This is a
   property of the current synchronous endpoint, not the deployment.
-- Chromium runs in a 1200 Mi container on a shared 12 GB node. Two searches at
-  once will be slow; a very large LinkedIn page can push the container to its
-  limit and be OOM-killed (visible as restarts in the dashboard).
-- The `opencode` container keeps no persistent browser profile: every new pod
-  logs in to LinkedIn again, which is the most likely place to hit a challenge.
+- HireMe is the only source: a rate limit (HTTP 429) or an API error fails the
+  whole search. There is no fallback board.
 - `Dockerfile.opencode` installs the OpenCode CLI without a version pin, so a
   rebuild follows upstream releases. Pin it if you need reproducible rebuilds.
