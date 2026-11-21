@@ -100,8 +100,7 @@ src/main/java/com/akatsuki/keren_job/
 ├── controller/         HomeController, SearchController, GlobalExceptionHandler
 ├── service/            OpenCodeService — prompt building and ChatClient calls
 ├── opencode/           OpenCodeChatModel — OpenCode V2 REST client
-├── config/             ChatClientConfig, OpenCodeProcessManager (local auto-start)
-└── dto/                JobResult
+└── config/             ChatClientConfig, OpenCodeProcessManager (local auto-start)
 src/main/resources/
 ├── templates/          Thymeleaf index and HTMX fragments
 └── application.properties
