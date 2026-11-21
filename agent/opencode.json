@@ -3,5 +3,6 @@
   "model": "opencode/longcat-2.5-free",
   "permissions": [
     { "action": "*", "resource": "*", "effect": "allow" }
-  ]
+  ],
+  "compaction": { "auto": true }
 }

@@ -28,6 +28,7 @@ RUN mkdir -p /home/opencode/workspace \
     && chown opencode:opencode /home/opencode/workspace
 
 COPY agent/opencode.json /home/opencode/workspace/opencode.json
+COPY agent/AGENTS.md /home/opencode/workspace/AGENTS.md
 COPY agent/.opencode/ /home/opencode/workspace/.opencode/
 RUN chown -R opencode:opencode /home/opencode/workspace
 

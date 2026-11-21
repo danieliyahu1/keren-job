@@ -226,6 +226,9 @@ jobs:
           # The HireMe skill must ship in the image.
           docker exec kerenjob-opencode-smoke sh -c 'test -s /home/opencode/.config/opencode/skills/hiremetech-jobs/SKILL.md'
           docker exec kerenjob-opencode-smoke sh -c 'grep -q "hiremetech.com/api/jobs/search" /home/opencode/.config/opencode/skills/hiremetech-jobs/SKILL.md'
+          # The agent's behaviour instructions must ship in the session workspace.
+          docker exec kerenjob-opencode-smoke sh -c 'test -s /home/opencode/workspace/AGENTS.md'
+          docker exec kerenjob-opencode-smoke sh -c 'grep -q hiremetech-jobs /home/opencode/workspace/AGENTS.md'
 
       - name: Smoke test opencode logs
         if: failure() && (needs.changes.outputs.opencode == 'true' || inputs.rebuild_opencode == true)
