@@ -164,7 +164,18 @@ public class OpenCodeAgentClient {
                 boolean finished = message.hasNonNull("finish")
                         || message.path("time").hasNonNull("completed");
                 if (isNew && finished) {
-                    return new Outcome.Answer(extractText(message));
+                    // A step that ended on a tool call carries no text; the `question`
+                    // tool is one of those. Skipping it is what lets question -> answer
+                    // -> result land on the text step instead of an empty answer.
+                    String text = textParts(message);
+                    if (!text.isEmpty()) {
+                        return new Outcome.Answer(text);
+                    }
+                    if (message.hasNonNull("error")) {
+                        log.warn("OpenCode assistant message finished with error: {}", message.path("error"));
+                        return new Outcome.Answer(FALLBACK_RESPONSE);
+                    }
+                    log.debug("ignoring a finished message without text id='{}'", messageId);
                 }
             }
 
@@ -306,6 +317,15 @@ public class OpenCodeAgentClient {
             log.warn("OpenCode assistant message finished with error: {}", message.path("error"));
         }
 
+        String text = textParts(message);
+        if (text.isEmpty()) {
+            log.warn("OpenCode assistant message contained no text - returning fallback message");
+            return FALLBACK_RESPONSE;
+        }
+        return text;
+    }
+
+    private String textParts(JsonNode message) {
         StringBuilder text = new StringBuilder();
         JsonNode content = message == null ? null : message.get("content");
         if (content != null && content.isArray()) {
@@ -317,11 +337,6 @@ public class OpenCodeAgentClient {
                     }
                 }
             }
-        }
-
-        if (text.isEmpty()) {
-            log.warn("OpenCode assistant message contained no text — returning fallback message");
-            return FALLBACK_RESPONSE;
         }
         return text.toString();
     }

@@ -34,7 +34,10 @@ class OpenCodeAgentClientTest {
     private volatile int promptStatus = 200;
     private volatile boolean messagesAvailable;
     private volatile boolean formPending;
+    private volatile boolean toolMessageFirst;
     private volatile String formJson = "{}";
+    private final java.util.concurrent.atomic.AtomicInteger messageCalls =
+            new java.util.concurrent.atomic.AtomicInteger();
 
     @BeforeEach
     void setUp() throws IOException {
@@ -121,6 +124,19 @@ class OpenCodeAgentClientTest {
     }
 
     @Test
+    @DisplayName("a finished step without text is skipped until the text step arrives")
+    void finishedStepWithoutTextIsSkipped() {
+        toolMessageFirst = true;
+        messagesAvailable = true;
+
+        Outcome outcome = client.await("ses_test", null);
+
+        assertThat(outcome).isInstanceOf(Outcome.Answer.class);
+        assertThat(((Outcome.Answer) outcome).text()).isEqualTo("found jobs");
+        assertThat(messageCalls.get()).isEqualTo(2);
+    }
+
+    @Test
     @DisplayName("a 404 on prompt signals that the session must be recreated")
     void prompt404SignalsRecreate() {
         promptStatus = 404;
@@ -177,6 +193,15 @@ class OpenCodeAgentClientTest {
         }
         if ("GET".equals(method) && path.endsWith("/message")) {
             if (messagesAvailable) {
+                int call = messageCalls.getAndIncrement();
+                if (toolMessageFirst && call == 0) {
+                    send(exchange, 200, """
+                            {"data":[{"id":"msg_tool","type":"assistant","finish":"tool-calls",
+                            "content":[{"type":"tool","tool":"question"}],"time":{"completed":1}}],
+                            "cursor":{"previous":null,"next":null}}
+                            """);
+                    return;
+                }
                 send(exchange, 200, """
                         {"data":[{"id":"msg_1","type":"assistant","finish":"stop",
                         "content":[{"type":"reasoning","text":"hidden"},{"type":"text","text":"found "},
