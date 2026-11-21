@@ -183,7 +183,6 @@ jobs:
         run: |
           REF="${REGISTRY}/${OPENCODE_IMAGE}:sha-${GITHUB_SHA}"
           docker run -d --name kerenjob-opencode-smoke \
-            -e LINKEDIN_EMAIL=smoke-test -e LINKEDIN_PASSWORD=smoke-test \
             -e OPENCODE_API_KEY=smoke-test -e OPENCODE_PASSWORD=smoke-test-password \
             -p 14096:4096 "${REF}"
 

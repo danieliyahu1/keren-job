@@ -1,9 +1,9 @@
 # kerenjob — one pod, two containers that belong together:
 #
 #   app       Spring Boot UI/API on 8080, operational endpoints on 9090.
-#   opencode  `opencode serve` on 4096: the agent runtime that drives Playwright
-#             and Chromium against LinkedIn. The app reaches it on loopback, which
-#             is why they share a pod instead of a Service.
+#   opencode  `opencode serve` on 4096: the agent runtime that searches HireMe's
+#             public JSON API. The app reaches it on loopback, which is why they
+#             share a pod instead of a Service.
 #
 # Both images are pinned to the triggering commit SHA and the registry digest.
 # The build-and-push workflow publishes them and rewrites these two lines, so the
@@ -18,8 +18,8 @@ metadata:
     app.kubernetes.io/name: kerenjob
 spec:
   replicas: 1
-  # Recreate, not RollingUpdate: a search holds a Chromium session in memory, and
-  # a second full pod (JVM + Chromium) during rollout is how a 12 GB node OOMs.
+  # Recreate, not RollingUpdate: the pod holds the agent session and the node is
+  # shared; a second full pod during rollout is how the 12 GB box OOMs.
   strategy:
     type: Recreate
   selector:
@@ -105,18 +105,6 @@ spec:
             - name: opencode
               containerPort: 4096
           env:
-            # The entrypoint substitutes these into the linkedin-jobs skill file at
-            # startup; the values themselves never exist in Git or the image.
-            - name: LINKEDIN_EMAIL
-              valueFrom:
-                secretKeyRef:
-                  name: kerenjob-secrets
-                  key: linkedin-email
-            - name: LINKEDIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: kerenjob-secrets
-                  key: linkedin-password
             - name: OPENCODE_API_KEY
               valueFrom:
                 secretKeyRef:
@@ -132,12 +120,11 @@ spec:
           resources:
             requests:
               cpu: 100m
-              memory: 512Mi
+              memory: 256Mi
             limits:
-              cpu: 1000m
-              memory: 1200Mi
-          # The image's entrypoint rewrites skill files under ~/.config at start,
-          # so this container keeps a writable rootfs. It is still unprivileged:
+              cpu: 500m
+              memory: 512Mi
+          # The CLI keeps its state on the mounted emptyDirs. It is unprivileged:
           # the image runs as the numeric non-root user below, with no capabilities.
           securityContext:
             runAsUser: 10002
@@ -161,23 +148,13 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
-          # No liveness probe on purpose: a browser session stalled behind
-          # LinkedIn must not be SIGKILLed mid-search. Readiness covers it.
+          # No liveness probe on purpose: a long search must not be SIGKILLed
+          # mid-run. Readiness covers it.
           volumeMounts:
-            # Chromium's shared memory. The 64 MB default makes it crash; this is
-            # memory-backed, so it is accounted against the container limit.
-            - name: dev-shm
-              mountPath: /dev/shm
             - name: opencode-tmp
               mountPath: /tmp
             - name: opencode-state
               mountPath: /home/opencode/.local/share/opencode
-            # Browser profile and screenshots. emptyDir: the LinkedIn session does
-            # not survive a pod replacement, so a new pod logs in again.
-            - name: playwright-profile
-              mountPath: /home/opencode/.playwright-mcp
-            - name: playwright-output
-              mountPath: /home/opencode/.playwright-mcp-output
       volumes:
         - name: app-tmp
           emptyDir:
@@ -188,13 +165,3 @@ spec:
         - name: opencode-state
           emptyDir:
             sizeLimit: 128Mi
-        - name: playwright-profile
-          emptyDir:
-            sizeLimit: 256Mi
-        - name: playwright-output
-          emptyDir:
-            sizeLimit: 128Mi
-        - name: dev-shm
-          emptyDir:
-            medium: Memory
-            sizeLimit: 256Mi

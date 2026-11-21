@@ -89,8 +89,6 @@ expect(appBlock.includes("containerPort: 8080"), "app must listen on 8080");
 expect(appBlock.includes("containerPort: 9090"), "app must expose metrics on 9090");
 expect(appBlock.includes("readOnlyRootFilesystem: true"), "app must run with a read-only rootfs");
 expect(opencodeBlock.includes("containerPort: 4096"), "opencode must listen on 4096");
-expect(opencodeBlock.includes("LINKEDIN_EMAIL"), "opencode must receive LINKEDIN_EMAIL");
-expect(opencodeBlock.includes("LINKEDIN_PASSWORD"), "opencode must receive LINKEDIN_PASSWORD");
 expect(opencodeBlock.includes("OPENCODE_API_KEY"), "opencode must receive OPENCODE_API_KEY");
 expect(
   opencodeBlock.includes("OPENCODE_PASSWORD"),
@@ -107,11 +105,6 @@ expect(
 expect(
   opencodeBlock.includes("127.0.0.1:4096/api/info"),
   "opencode probes must check the authenticated /api/info endpoint",
-);
-expect(opencodeBlock.includes("mountPath: /dev/shm"), "opencode needs a /dev/shm volume for Chromium");
-expect(
-  /- name: dev-shm[\s\S]*?medium: Memory/.test(deployment),
-  "/dev/shm must be a memory-backed emptyDir",
 );
 
 expect(deployment.includes("runAsNonRoot: true"), "pod must run as non-root");
@@ -156,8 +149,6 @@ expect(
 );
 expect(externalSecret.includes("name: kerenjob-secrets"), "ExternalSecret must target kerenjob-secrets");
 for (const key of [
-  "k3s-01-kerenjob-linkedin-email",
-  "k3s-01-kerenjob-linkedin-password",
   "k3s-01-kerenjob-opencode-api-key",
   "k3s-01-kerenjob-opencode-password",
 ]) {

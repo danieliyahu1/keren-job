@@ -1,5 +1,5 @@
-# Non-secret configuration. Credentials (LinkedIn login, OpenCode API key) arrive
-# from OCI Vault through kerenjob-secrets; nothing secret belongs in Git.
+# Non-secret configuration. Credentials (OpenCode API key and server password)
+# arrive from OCI Vault through kerenjob-secrets; nothing secret belongs in Git.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -13,7 +13,7 @@ data:
   # loopback and is not started by the JVM (the sidecar owns its lifecycle).
   OPENCODE_BASE_URL: http://127.0.0.1:4096
   OPENCODE_AUTO_START: "false"
-  # A LinkedIn search through Playwright is slow; keep the client timeout and the
+  # A HireMe search is still several model calls; keep the client timeout and the
   # MVC async timeout aligned.
   OPENCODE_TIMEOUT_SECONDS: "600"
   JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError

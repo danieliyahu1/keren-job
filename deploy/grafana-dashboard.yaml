@@ -9,7 +9,7 @@
 #     and kube-state-metrics scrapes, filtered by namespace.
 #
 # The opencode sidecar exports no Prometheus endpoint of its own, so its health is
-# represented by container readiness/restarts and by the app's request errors —
+# represented by container readiness/restarts and by the app's request errors â€”
 # not invented metrics. Search duration comes from the public /api/search route.
 apiVersion: v1
 kind: ConfigMap
@@ -47,7 +47,7 @@ data:
           "id": 2,
           "type": "stat",
           "title": "5xx error ratio",
-          "description": "Share of requests answered with a 5xx. A search that fails because LinkedIn or the model is unavailable lands here.",
+          "description": "Share of requests answered with a 5xx. A search that fails because HireMe or the model is unavailable lands here.",
           "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
           "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
           "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 2, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 0.05 }, { "color": "red", "value": 0.2 } ] } }, "overrides": [] },
@@ -59,7 +59,7 @@ data:
           "id": 3,
           "type": "stat",
           "title": "p95 request duration",
-          "description": "95th percentile of request duration. A LinkedIn search is expected to take minutes; anything under the 100 s edge timeout is a red herring for the browser.",
+          "description": "95th percentile of request duration. A HireMe search is expected to take tens of seconds; anything under the 100 s edge timeout is a red herring for the client.",
           "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
           "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
           "fieldConfig": { "defaults": { "unit": "s", "decimals": 1 }, "overrides": [] },
@@ -71,7 +71,7 @@ data:
           "id": 4,
           "type": "stat",
           "title": "Containers ready",
-          "description": "Ready containers in the kerenjob pod. app serves HTTP; opencode is the agent runtime with Playwright/Chromium. Expect 2.",
+          "description": "Ready containers in the kerenjob pod. app serves HTTP; opencode is the agent runtime. Expect 2.",
           "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
           "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
           "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "min": 0, "max": 2, "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "orange", "value": 1 }, { "color": "green", "value": 2 } ] } }, "overrides": [] },
@@ -95,7 +95,7 @@ data:
           "id": 6,
           "type": "timeseries",
           "title": "Latency by route (p95)",
-          "description": "Per-route p95. /api/search is the LinkedIn agent; / is the form; /css and /favicon are static.",
+          "description": "Per-route p95. /api/search is the HireMe agent; / is the form; /css and /favicon are static.",
           "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
           "fieldConfig": { "defaults": { "unit": "s", "decimals": 1 }, "overrides": [] },
@@ -120,7 +120,7 @@ data:
           "id": 8,
           "type": "timeseries",
           "title": "Container memory (working set)",
-          "description": "JVM and Chromium memory as the kubelet reports it. Chromium is the container most likely to hit its 1200Mi limit on a large LinkedIn page.",
+          "description": "JVM and sidecar memory as the kubelet reports it. The app JVM is the container most likely to hit its 768Mi limit.",
           "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
           "fieldConfig": { "defaults": { "unit": "bytes", "decimals": 0 }, "overrides": [] },
@@ -144,7 +144,7 @@ data:
           "id": 10,
           "type": "timeseries",
           "title": "Restarts",
-          "description": "Container restarts. A rising opencode count means Chromium is being OOM-killed; a rising app count points at the JVM or the liveness probe.",
+          "description": "Container restarts. A rising opencode count points at the sidecar; a rising app count points at the JVM or the liveness probe.",
           "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 21 },
           "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 }, "overrides": [] },
