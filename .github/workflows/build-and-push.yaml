@@ -4,7 +4,7 @@
 #
 # Two images, because the app is two processes:
 #   ghcr.io/<repo>            Spring Boot UI/API
-#   ghcr.io/<repo>-opencode   OpenCode agent runtime with Playwright + Chromium
+#   ghcr.io/<repo>-opencode   OpenCode agent runtime with the HireMe skill
 #
 # The opencode image is only rebuilt when its inputs change. Every rebuild
 # produces a new digest the VM has to pull (~1 GB), and the box has no image GC,
@@ -176,9 +176,8 @@ jobs:
           cache-from: type=gha,scope=opencode
           cache-to: type=gha,mode=max,scope=opencode
 
-      # The sidecar image is the one with real portability risk: it must install
-      # Playwright's arm64 Chromium, ship both skills, substitute the LinkedIn
-      # credentials, and answer `/api/info` as a non-root user.
+      # The sidecar image must ship the HireMe skill and answer `/api/info` as a
+      # non-root user. It carries no browser: HireMe is a public JSON API.
       - name: Smoke test the opencode image
         if: needs.changes.outputs.opencode == 'true' || inputs.rebuild_opencode == true
         run: |
@@ -223,7 +222,8 @@ jobs:
           # silently unauthenticated sidecar in the pod.
           [ "${anon}" = "401" ] || { echo "expected anonymous /api/info to be 401, got ${anon}" >&2; exit 1; }
 
-          docker exec kerenjob-opencode-smoke sh -c 'find /ms-playwright -name chrome -type f | head -n 1' | grep -q .
+          # No browser may creep back into the image: HireMe is API only.
+          docker exec kerenjob-opencode-smoke sh -c 'test ! -e /ms-playwright'
           # The HireMe skill must ship in the image.
           docker exec kerenjob-opencode-smoke sh -c 'test -s /home/opencode/.config/opencode/skills/hiremetech-jobs/SKILL.md'
           docker exec kerenjob-opencode-smoke sh -c 'grep -q "hiremetech.com/api/jobs/search" /home/opencode/.config/opencode/skills/hiremetech-jobs/SKILL.md'
