@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "opencode/longcat-2.5-free",
+  "model": "opencode/big-pickle",
   "default_agent": "build",
   "permissions": [
     { "action": "*", "resource": "*", "effect": "allow" }
