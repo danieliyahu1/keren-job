@@ -10,34 +10,42 @@
 <body>
     <main>
         <h1>Keren Job</h1>
-        <p class="headline">Describe your next job. I'll find it.</p>
-        <form hx-post="/api/search"
-              hx-target="#conversation"
-              hx-swap="beforeend"
-              hx-indicator="#loading">
-            <textarea name="query"
-                      rows="4"
-                      autofocus></textarea>
-            <button type="submit">Search</button>
-        </form>
+
+        <div id="conversation" class="conversation">
+            <p id="empty-state" class="empty-state">Describe your next job. I'll find it.</p>
+        </div>
 
         <div id="loading" class="htmx-indicator">
-            <p>Looking for your next job&hellip;</p>
+            <div class="turn turn-assistant">
+                <div class="bubble typing">Looking for your next job&hellip;</div>
+            </div>
         </div>
 
         <div id="validation-message" hidden>
             <p>Please describe the job you are looking for.</p>
         </div>
 
-        <div id="conversation"></div>
+        <form id="composer"
+              class="composer"
+              hx-post="/api/search"
+              hx-target="#conversation"
+              hx-swap="beforeend"
+              hx-indicator="#loading">
+            <textarea name="query"
+                      rows="2"
+                      autofocus
+                      placeholder="Describe the job you want"></textarea>
+            <button type="submit">Send</button>
+        </form>
     </main>
 
     <script>
-        var form = document.querySelector("form");
+        var form = document.getElementById("composer");
         var button = form.querySelector("button");
         var textarea = form.querySelector("textarea");
         var validationMessage = document.getElementById("validation-message");
         var conversation = document.getElementById("conversation");
+        var emptyState = document.getElementById("empty-state");
 
         function scrollToLatest() {
             window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
@@ -51,6 +59,9 @@
             bubble.textContent = text;
             turn.appendChild(bubble);
             conversation.appendChild(turn);
+            if (emptyState) {
+                emptyState.hidden = true;
+            }
         }
 
         form.addEventListener("submit", function (event) {
@@ -60,7 +71,7 @@
                 return;
             }
             appendUserMessage(textarea.value);
-            textarea.value = "";
+            validationMessage.hidden = true;
             document.querySelectorAll(".question-card:not(.answered)")
                 .forEach(function (card) { card.classList.add("answered"); });
             scrollToLatest();
@@ -70,17 +81,28 @@
             validationMessage.hidden = true;
         });
 
+        textarea.addEventListener("keydown", function (event) {
+            if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+                event.preventDefault();
+                form.requestSubmit();
+            }
+        });
+
         document.body.addEventListener("htmx:beforeRequest", function (event) {
             if (event.detail.elt !== form) {
                 return;
             }
             button.disabled = true;
-            button.textContent = "Searching\u2026";
+            button.textContent = "Sending\u2026";
         });
 
-        document.body.addEventListener("htmx:afterRequest", function () {
+        document.body.addEventListener("htmx:afterRequest", function (event) {
+            // The value must survive until htmx reads the form; clear it once the request is out.
+            if (event.detail.elt === form) {
+                textarea.value = "";
+            }
             button.disabled = false;
-            button.textContent = "Search";
+            button.textContent = "Send";
             scrollToLatest();
         });
     </script>

@@ -61,12 +61,22 @@ class HomeControllerTest {
     }
 
     @Test
-    @DisplayName("GET / renders loading indicator and conversation container")
+    @DisplayName("GET / renders loading indicator, empty state and conversation container")
     void getIndexRendersLoadingAndResultsElements() throws Exception {
         mockMvc.perform(get("/"))
                 .andExpect(content().string(containsString("id=\"loading\"")))
                 .andExpect(content().string(containsString("id=\"conversation\"")))
+                .andExpect(content().string(containsString("id=\"empty-state\"")))
                 .andExpect(content().string(containsString("id=\"validation-message\"")));
+    }
+
+    @Test
+    @DisplayName("GET / renders the message composer at the bottom")
+    void getIndexRendersComposer() throws Exception {
+        mockMvc.perform(get("/"))
+                .andExpect(content().string(containsString("id=\"composer\"")))
+                .andExpect(content().string(containsString("class=\"composer\"")))
+                .andExpect(content().string(containsString(">Send</button>")));
     }
 
     @Test
