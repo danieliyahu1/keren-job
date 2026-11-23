@@ -40,7 +40,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: app
-          image: ghcr.io/danieliyahu1/keren-job:sha-06ddf65f24732f2d842b16c2875ddbd335f7598f@sha256:9ac91476c71451ad755435961518f99da6d09d1a09f46ccabf9db9cc10817068
+          image: ghcr.io/danieliyahu1/keren-job:sha-34e0df5e8e2bbaf6b83d7aa4c01593fa656d2813@sha256:3fd413c2023b2f95e6f737404711f8043d540d3e78b64c3d4fa697923ace8731
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
