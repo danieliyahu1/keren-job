@@ -36,6 +36,7 @@ class OpenCodeAgentClientTest {
     private volatile boolean messagesAvailable;
     private volatile boolean formPending;
     private volatile boolean toolMessageFirst;
+    private volatile String errorMessageJson;
     private volatile String formJson = "{}";
     private final java.util.concurrent.atomic.AtomicInteger messageCalls =
             new java.util.concurrent.atomic.AtomicInteger();
@@ -138,6 +139,26 @@ class OpenCodeAgentClientTest {
     }
 
     @Test
+    @DisplayName("a provider error on a finished message surfaces as an Error outcome with the raw detail")
+    void providerErrorSurfacesAsErrorOutcome() {
+        messagesAvailable = true;
+        errorMessageJson = """
+                {"id":"msg_err","type":"assistant","finish":"error",
+                 "content":[],"time":{"completed":1},
+                 "error":{"type":"provider.quota","status":402,
+                          "message":"Insufficient balance."}}
+                """;
+
+        Outcome outcome = client.await("ses_test", null);
+
+        assertThat(outcome).isInstanceOf(Outcome.Error.class);
+        assertThat(((Outcome.Error) outcome).detail())
+                .contains("\"type\":\"provider.quota\"")
+                .contains("\"status\":402")
+                .contains("Insufficient balance.");
+    }
+
+    @Test
     @DisplayName("a form can be read by id")
     void formLookup() {
         formJson = """
@@ -220,6 +241,11 @@ class OpenCodeAgentClientTest {
         }
         if ("GET".equals(method) && path.endsWith("/message")) {
             if (messagesAvailable) {
+                if (errorMessageJson != null) {
+                    send(exchange, 200, "{\"data\":[" + errorMessageJson
+                            + "],\"cursor\":{\"previous\":null,\"next\":null}}");
+                    return;
+                }
                 int call = messageCalls.getAndIncrement();
                 if (toolMessageFirst && call == 0) {
                     send(exchange, 200, """

@@ -106,7 +106,7 @@ class OpenCodeServiceTest {
         session.setAttribute(OpenCodeService.ATTR_BUSY, Boolean.TRUE);
 
         assertThatThrownBy(() -> openCodeService.search(session, "find jobs"))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(UserMessageException.class)
                 .hasMessage("A search is already running in another tab.");
 
         verifyNoInteractions(agent);
@@ -134,7 +134,7 @@ class OpenCodeServiceTest {
     @DisplayName("answering without a pending question is rejected")
     void answerWithoutPendingFormIsRejected() {
         assertThatThrownBy(() -> openCodeService.answer(session, Map.of()))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(UserMessageException.class)
                 .hasMessage("There is no question to answer.");
 
         verifyNoInteractions(agent);

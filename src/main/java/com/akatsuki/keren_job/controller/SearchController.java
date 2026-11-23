@@ -4,6 +4,7 @@ import com.akatsuki.keren_job.opencode.OpenCodeAgentClient.Field;
 import com.akatsuki.keren_job.opencode.OpenCodeAgentClient.Form;
 import com.akatsuki.keren_job.opencode.OpenCodeAgentClient.Outcome;
 import com.akatsuki.keren_job.service.OpenCodeService;
+import com.akatsuki.keren_job.service.UserMessageException;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +26,7 @@ class SearchController {
 
     private static final String FORM_ID_PARAM = "__formId";
     private static final String CUSTOM_PREFIX = "__custom_";
+    static final String CONTACT_HINT = "Please reach Daniel.";
 
     private final OpenCodeService openCodeService;
 
@@ -44,9 +46,12 @@ class SearchController {
 
         try {
             return render(openCodeService.search(session, query), model);
+        } catch (UserMessageException e) {
+            model.addAttribute("message", e.getMessage());
+            return "fragments/error :: error";
         } catch (Exception e) {
             log.error("Search failed", e);
-            model.addAttribute("message", e.getMessage());
+            model.addAttribute("message", failureMessage(e));
             return "fragments/error :: error";
         }
     }
@@ -58,9 +63,12 @@ class SearchController {
 
         try {
             return render(openCodeService.answer(session, values), model);
+        } catch (UserMessageException e) {
+            model.addAttribute("message", e.getMessage());
+            return "fragments/error :: error";
         } catch (Exception e) {
             log.error("Form answer failed", e);
-            model.addAttribute("message", e.getMessage());
+            model.addAttribute("message", failureMessage(e));
             return "fragments/error :: error";
         }
     }
@@ -75,7 +83,25 @@ class SearchController {
                 model.addAttribute("form", question.form());
                 yield "fragments/question :: question";
             }
+            case Outcome.Error error -> {
+                model.addAttribute("message", withContactHint(error.detail()));
+                yield "fragments/error :: error";
+            }
         };
+    }
+
+    /** Shows the failure exactly as it came back, then tells the user who to reach. */
+    static String failureMessage(Throwable error) {
+        String detail = error.getMessage();
+        if (detail == null || detail.isBlank()) {
+            detail = error.getClass().getSimpleName();
+        }
+        return withContactHint(detail);
+    }
+
+    static String withContactHint(String detail) {
+        String text = detail == null || detail.isBlank() ? "Something went wrong." : detail;
+        return text + "\n\n" + CONTACT_HINT;
     }
 
     private static Map<String, Object> toAnswer(MultiValueMap<String, String> fields, Form form) {

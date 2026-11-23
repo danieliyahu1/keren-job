@@ -5,6 +5,7 @@ import com.akatsuki.keren_job.opencode.OpenCodeAgentClient.Form;
 import com.akatsuki.keren_job.opencode.OpenCodeAgentClient.Option;
 import com.akatsuki.keren_job.opencode.OpenCodeAgentClient.Outcome;
 import com.akatsuki.keren_job.service.OpenCodeService;
+import com.akatsuki.keren_job.service.UserMessageException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -94,12 +95,38 @@ class SearchControllerTest {
         @DisplayName("returns the error fragment when another tab is already searching")
         void busySearchReturnsErrorFragment() throws Exception {
             when(openCodeService.search(any(), anyString()))
-                    .thenThrow(new IllegalStateException("A search is already running in another tab."));
+                    .thenThrow(new UserMessageException("A search is already running in another tab."));
 
             mockMvc.perform(post("/api/search").session(session).param("query", "developer"))
                     .andExpect(status().isOk())
                     .andExpect(view().name("fragments/error :: error"))
                     .andExpect(model().attribute("message", "A search is already running in another tab."));
+        }
+
+        @Test
+        @DisplayName("a failed turn shows the raw error and tells the user to reach Daniel")
+        void errorOutcomeReturnsRawErrorAndContactHint() throws Exception {
+            String raw = "{\"type\":\"provider.quota\",\"status\":402,"
+                    + "\"message\":\"Insufficient balance.\"}";
+            when(openCodeService.search(any(), anyString())).thenReturn(new Outcome.Error(raw));
+
+            mockMvc.perform(post("/api/search").session(session).param("query", "developer"))
+                    .andExpect(status().isOk())
+                    .andExpect(view().name("fragments/error :: error"))
+                    .andExpect(model().attribute("message", raw + "\n\nPlease reach Daniel."));
+        }
+
+        @Test
+        @DisplayName("an unexpected exception shows its message and tells the user to reach Daniel")
+        void exceptionReturnsMessageAndContactHint() throws Exception {
+            when(openCodeService.search(any(), anyString()))
+                    .thenThrow(new RuntimeException("OpenCode prompt returned HTTP 502"));
+
+            mockMvc.perform(post("/api/search").session(session).param("query", "developer"))
+                    .andExpect(status().isOk())
+                    .andExpect(view().name("fragments/error :: error"))
+                    .andExpect(model().attribute("message",
+                            "OpenCode prompt returned HTTP 502\n\nPlease reach Daniel."));
         }
 
         @Test
@@ -193,7 +220,7 @@ class SearchControllerTest {
         @DisplayName("returns the error fragment when there is no pending question")
         void noQuestionReturnsErrorFragment() throws Exception {
             when(openCodeService.answer(any(), any()))
-                    .thenThrow(new IllegalStateException("There is no question to answer."));
+                    .thenThrow(new UserMessageException("There is no question to answer."));
 
             mockMvc.perform(post("/api/search/answer").session(session).param("role", "dev"))
                     .andExpect(status().isOk())

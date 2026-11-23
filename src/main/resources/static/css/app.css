@@ -239,6 +239,9 @@ button:disabled {
 .error-message p {
     color: #4b5563;
     margin-bottom: 16px;
+    text-align: left;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }
 
 .retry-button {

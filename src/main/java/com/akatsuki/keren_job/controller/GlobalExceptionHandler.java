@@ -13,7 +13,7 @@ class GlobalExceptionHandler {
     ModelAndView handleException(Exception e) {
         log.error("Unhandled exception", e);
         ModelAndView mav = new ModelAndView("fragments/error :: error");
-        mav.addObject("message", "Something went wrong. Please try again.");
+        mav.addObject("message", SearchController.failureMessage(e));
         return mav;
     }
 }

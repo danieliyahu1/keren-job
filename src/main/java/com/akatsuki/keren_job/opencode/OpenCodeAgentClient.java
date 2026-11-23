@@ -32,8 +32,6 @@ import java.util.concurrent.TimeUnit;
 @Component
 public class OpenCodeAgentClient {
 
-    private static final String FALLBACK_RESPONSE =
-            "I was unable to complete this task. Please try breaking it into smaller steps or provide more details.";
     private static final long POLL_INTERVAL_MS = 500L;
 
     private final String baseUrl;
@@ -57,10 +55,12 @@ public class OpenCodeAgentClient {
         log.info("OpenCodeAgentClient initialized baseUrl='{}' timeoutSeconds={}", baseUrl, timeoutSeconds);
     }
 
-    /** Result of a completed turn: either the agent's answer or a question waiting for the user. */
+    /** Result of a completed turn: the agent's answer, a question, or a turn that failed. */
     public sealed interface Outcome {
         record Answer(String text) implements Outcome {}
         record Question(Form form) implements Outcome {}
+        /** The turn ended with an error from OpenCode or the model. {@code detail} is the raw error. */
+        record Error(String detail) implements Outcome {}
     }
 
     public record Form(String id, String title, List<Field> fields) {}
@@ -138,14 +138,15 @@ public class OpenCodeAgentClient {
                     response.statusCode(), sessionId, response.body());
             throw new RuntimeException(
                     "OpenCode prompt returned HTTP " + response.statusCode() +
-                    " for sessionId='" + sessionId + "'");
+                    " for sessionId='" + sessionId + "': " + response.body());
         }
     }
 
     /**
      * Waits until the session needs the user again: a pending form yields a
      * {@link Outcome.Question}, a finished assistant message yields an
-     * {@link Outcome.Answer}.
+     * {@link Outcome.Answer}, and a message that failed at the provider yields
+     * an {@link Outcome.Error} carrying the raw error.
      */
     public Outcome await(String sessionId, String baselineMessageId) {
         long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(timeoutSeconds);
@@ -172,8 +173,9 @@ public class OpenCodeAgentClient {
                         return new Outcome.Answer(text);
                     }
                     if (message.hasNonNull("error")) {
-                        log.warn("OpenCode assistant message finished with error: {}", message.path("error"));
-                        return new Outcome.Answer(FALLBACK_RESPONSE);
+                        JsonNode error = message.path("error");
+                        log.warn("OpenCode assistant message finished with error: {}", error);
+                        return new Outcome.Error(error.toString());
                     }
                     log.debug("ignoring a finished message without text id='{}'", messageId);
                 }
@@ -280,7 +282,7 @@ public class OpenCodeAgentClient {
                     response.statusCode(), sessionId, formId, response.body());
             throw new RuntimeException(
                     "OpenCode form reply returned HTTP " + response.statusCode() +
-                    " for sessionId='" + sessionId + "'");
+                    " for sessionId='" + sessionId + "': " + response.body());
         }
     }
 
@@ -361,19 +363,6 @@ public class OpenCodeAgentClient {
             Thread.currentThread().interrupt();
             throw new RuntimeException("Interrupted while waiting for OpenCode", e);
         }
-    }
-
-    private String extractText(JsonNode message) {
-        if (message != null && message.hasNonNull("error")) {
-            log.warn("OpenCode assistant message finished with error: {}", message.path("error"));
-        }
-
-        String text = textParts(message);
-        if (text.isEmpty()) {
-            log.warn("OpenCode assistant message contained no text - returning fallback message");
-            return FALLBACK_RESPONSE;
-        }
-        return text;
     }
 
     private String textParts(JsonNode message) {

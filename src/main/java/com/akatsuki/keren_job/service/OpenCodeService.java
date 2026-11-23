@@ -44,7 +44,7 @@ public class OpenCodeService {
             throw new IllegalArgumentException("query must not be blank");
         }
         if (isBusy(http)) {
-            throw new IllegalStateException(ALREADY_RUNNING);
+            throw new UserMessageException(ALREADY_RUNNING);
         }
         dismissPendingQuestion(http);
 
@@ -83,11 +83,11 @@ public class OpenCodeService {
     /** Replies to the agent's pending form and waits for the next answer or question. */
     public Outcome answer(HttpSession http, Map<String, Object> values) {
         if (isBusy(http)) {
-            throw new IllegalStateException(NO_QUESTION);
+            throw new UserMessageException(NO_QUESTION);
         }
         String formId = pendingFormId(http);
         if (formId == null) {
-            throw new IllegalStateException(NO_QUESTION);
+            throw new UserMessageException(NO_QUESTION);
         }
 
         http.setAttribute(ATTR_BUSY, Boolean.TRUE);
