@@ -40,7 +40,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: app
-          image: ghcr.io/danieliyahu1/keren-job:sha-34e0df5e8e2bbaf6b83d7aa4c01593fa656d2813@sha256:3fd413c2023b2f95e6f737404711f8043d540d3e78b64c3d4fa697923ace8731
+          image: ghcr.io/danieliyahu1/keren-job:sha-06b14733e4a3c5a78b60d155f026c68681d39975@sha256:07b9868ce4899d38fbf72c3b4f52e7b25b9fce85fb568ff09856adba80b2d83a
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -99,7 +99,7 @@ spec:
               mountPath: /tmp
 
         - name: opencode
-          image: ghcr.io/danieliyahu1/keren-job-opencode:sha-761542c91ebdcb8c1bfc6cb914d72ce4b0ccf4a4@sha256:0cc1f3ba1c43c5b9df71fb9fcbc74fb307d63c72a926db5a774ff2abcef47083
+          image: ghcr.io/danieliyahu1/keren-job-opencode:sha-06b14733e4a3c5a78b60d155f026c68681d39975@sha256:931c52bdbbbc7e42c28e36369961173de8c97e6a6b1308e6c499715aec96420e
           imagePullPolicy: IfNotPresent
           ports:
             - name: opencode
