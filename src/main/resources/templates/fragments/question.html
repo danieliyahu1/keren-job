@@ -1,61 +1,64 @@
-<div th:fragment="question" class="question-card">
-    <h2 class="question-title" th:text="${form.title}">Question</h2>
+<div th:fragment="question" class="turn turn-assistant">
+    <div class="question-card">
+        <h2 class="question-title" th:text="${form.title}">Question</h2>
 
-    <form hx-post="/api/search/answer"
-          hx-target="#results"
-          hx-swap="innerHTML">
-        <input type="hidden" name="__formId" th:value="${form.id}">
+        <form hx-post="/api/search/answer"
+              hx-target="#conversation"
+              hx-swap="beforeend"
+              hx-on::after-request="this.closest('.question-card').classList.add('answered')">
+            <input type="hidden" name="__formId" th:value="${form.id}">
 
-        <div class="question-field" th:each="f : ${form.fields}">
-            <p class="question-label" th:text="${f.title}">Field</p>
-            <p class="question-description" th:if="${f.description}" th:text="${f.description}">Description</p>
+            <div class="question-field" th:each="f : ${form.fields}">
+                <p class="question-label" th:text="${f.title}">Field</p>
+                <p class="question-description" th:if="${f.description}" th:text="${f.description}">Description</p>
 
-            <th:block th:if="${f.type == 'string' and f.options != null and not #lists.isEmpty(f.options)}">
-                <label class="question-option" th:each="o : ${f.options}">
-                    <input type="radio"
-                           th:name="${f.key}"
-                           th:value="${o.value}"
-                           th:required="${f.required and not f.custom}">
-                    <span th:text="${o.label}">Option</span>
-                </label>
-            </th:block>
+                <th:block th:if="${f.type == 'string' and f.options != null and not #lists.isEmpty(f.options)}">
+                    <label class="question-option" th:each="o : ${f.options}">
+                        <input type="radio"
+                               th:name="${f.key}"
+                               th:value="${o.value}"
+                               th:required="${f.required and not f.custom}">
+                        <span th:text="${o.label}">Option</span>
+                    </label>
+                </th:block>
 
-            <th:block th:if="${f.type == 'multiselect' and f.options != null and not #lists.isEmpty(f.options)}">
-                <label class="question-option" th:each="o : ${f.options}">
+                <th:block th:if="${f.type == 'multiselect' and f.options != null and not #lists.isEmpty(f.options)}">
+                    <label class="question-option" th:each="o : ${f.options}">
+                        <input type="checkbox"
+                               th:name="${f.key}"
+                               th:value="${o.value}">
+                        <span th:text="${o.label}">Option</span>
+                    </label>
+                </th:block>
+
+                <label class="question-option" th:if="${f.type == 'boolean'}">
                     <input type="checkbox"
                            th:name="${f.key}"
-                           th:value="${o.value}">
-                    <span th:text="${o.label}">Option</span>
+                           value="true"
+                           th:required="${f.required}">
+                    <span>Yes</span>
                 </label>
-            </th:block>
 
-            <label class="question-option" th:if="${f.type == 'boolean'}">
-                <input type="checkbox"
+                <input th:if="${f.type == 'string' and (f.options == null or #lists.isEmpty(f.options))}"
+                       type="text"
                        th:name="${f.key}"
-                       value="true"
-                       th:required="${f.required}">
-                <span>Yes</span>
-            </label>
+                       th:required="${f.required}"
+                       th:attr="aria-label=${f.title}">
 
-            <input th:if="${f.type == 'string' and (f.options == null or #lists.isEmpty(f.options))}"
-                   type="text"
-                   th:name="${f.key}"
-                   th:required="${f.required}"
-                   th:attr="aria-label=${f.title}">
+                <input th:if="${f.type != 'string' and f.type != 'multiselect' and f.type != 'boolean'}"
+                       type="number"
+                       th:name="${f.key}"
+                       th:required="${f.required}"
+                       th:attr="aria-label=${f.title}">
 
-            <input th:if="${f.type != 'string' and f.type != 'multiselect' and f.type != 'boolean'}"
-                   type="number"
-                   th:name="${f.key}"
-                   th:required="${f.required}"
-                   th:attr="aria-label=${f.title}">
+                <input th:if="${f.custom and f.options != null and not #lists.isEmpty(f.options)}"
+                       type="text"
+                       th:name="${'__custom_' + f.key}"
+                       placeholder="Other (free text)"
+                       th:attr="aria-label=${'Other answer for ' + f.title}">
+            </div>
 
-            <input th:if="${f.custom and f.options != null and not #lists.isEmpty(f.options)}"
-                   type="text"
-                   th:name="${'__custom_' + f.key}"
-                   placeholder="Other (free text)"
-                   th:attr="aria-label=${'Other answer for ' + f.title}">
-        </div>
-
-        <button type="submit">Answer</button>
-    </form>
+            <button type="submit">Answer</button>
+        </form>
+    </div>
 </div>

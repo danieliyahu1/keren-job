@@ -50,22 +50,22 @@ class HomeControllerTest {
     }
 
     @Test
-    @DisplayName("GET / renders form with HTMX attributes targeting #results")
+    @DisplayName("GET / renders form with HTMX attributes appending to #conversation")
     void getIndexRendersFormWithHtmxAttributes() throws Exception {
         mockMvc.perform(get("/"))
                 .andExpect(content().string(containsString("hx-post=\"/api/search\"")))
-                .andExpect(content().string(containsString("hx-target=\"#results\"")))
-                .andExpect(content().string(containsString("hx-swap=\"innerHTML\"")))
+                .andExpect(content().string(containsString("hx-target=\"#conversation\"")))
+                .andExpect(content().string(containsString("hx-swap=\"beforeend\"")))
                 .andExpect(content().string(containsString("hx-indicator=\"#loading\"")))
                 .andExpect(content().string(containsString("name=\"query\"")));
     }
 
     @Test
-    @DisplayName("GET / renders loading indicator and results container")
+    @DisplayName("GET / renders loading indicator and conversation container")
     void getIndexRendersLoadingAndResultsElements() throws Exception {
         mockMvc.perform(get("/"))
                 .andExpect(content().string(containsString("id=\"loading\"")))
-                .andExpect(content().string(containsString("id=\"results\"")))
+                .andExpect(content().string(containsString("id=\"conversation\"")))
                 .andExpect(content().string(containsString("id=\"validation-message\"")));
     }
 

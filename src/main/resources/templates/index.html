@@ -12,8 +12,8 @@
         <h1>Keren Job</h1>
         <p class="headline">Describe your next job. I'll find it.</p>
         <form hx-post="/api/search"
-              hx-target="#results"
-              hx-swap="innerHTML"
+              hx-target="#conversation"
+              hx-swap="beforeend"
               hx-indicator="#loading">
             <textarea name="query"
                       rows="4"
@@ -29,7 +29,7 @@
             <p>Please describe the job you are looking for.</p>
         </div>
 
-        <div id="results"></div>
+        <div id="conversation"></div>
     </main>
 
     <script>
@@ -37,19 +37,43 @@
         var button = form.querySelector("button");
         var textarea = form.querySelector("textarea");
         var validationMessage = document.getElementById("validation-message");
+        var conversation = document.getElementById("conversation");
+
+        function scrollToLatest() {
+            window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+        }
+
+        function appendUserMessage(text) {
+            var turn = document.createElement("div");
+            turn.className = "turn turn-user";
+            var bubble = document.createElement("div");
+            bubble.className = "bubble";
+            bubble.textContent = text;
+            turn.appendChild(bubble);
+            conversation.appendChild(turn);
+        }
 
         form.addEventListener("submit", function (event) {
             if (textarea.value.trim() === "") {
                 event.preventDefault();
                 validationMessage.hidden = false;
+                return;
             }
+            appendUserMessage(textarea.value);
+            textarea.value = "";
+            document.querySelectorAll(".question-card:not(.answered)")
+                .forEach(function (card) { card.classList.add("answered"); });
+            scrollToLatest();
         });
 
         textarea.addEventListener("input", function () {
             validationMessage.hidden = true;
         });
 
-        document.body.addEventListener("htmx:beforeRequest", function () {
+        document.body.addEventListener("htmx:beforeRequest", function (event) {
+            if (event.detail.elt !== form) {
+                return;
+            }
             button.disabled = true;
             button.textContent = "Searching\u2026";
         });
@@ -57,6 +81,7 @@
         document.body.addEventListener("htmx:afterRequest", function () {
             button.disabled = false;
             button.textContent = "Search";
+            scrollToLatest();
         });
     </script>
 </body>
