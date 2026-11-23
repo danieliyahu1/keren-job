@@ -144,9 +144,13 @@ public class OpenCodeAgentClient {
 
     /**
      * Waits until the session needs the user again: a pending form yields a
-     * {@link Outcome.Question}, a finished assistant message yields an
-     * {@link Outcome.Answer}, and a message that failed at the provider yields
-     * an {@link Outcome.Error} carrying the raw error.
+     * {@link Outcome.Question}, the turn's final assistant step yields an
+     * {@link Outcome.Answer}, and a step that failed at the provider yields an
+     * {@link Outcome.Error} carrying the raw error.
+     *
+     * <p>A step that ends on a tool call ({@code finish=tool-calls}) is not the
+     * answer even when it carries narration text: the agent loop continues with
+     * the tool result and produces the real answer in a later step.</p>
      */
     public Outcome await(String sessionId, String baselineMessageId) {
         long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(timeoutSeconds);
@@ -164,10 +168,8 @@ public class OpenCodeAgentClient {
                 boolean isNew = baselineMessageId == null || !baselineMessageId.equals(messageId);
                 boolean finished = message.hasNonNull("finish")
                         || message.path("time").hasNonNull("completed");
-                if (isNew && finished) {
-                    // A step that ended on a tool call carries no text; the `question`
-                    // tool is one of those. Skipping it is what lets question -> answer
-                    // -> result land on the text step instead of an empty answer.
+                boolean toolCallStep = isToolCallStep(message);
+                if (isNew && finished && !toolCallStep) {
                     String text = textParts(message);
                     if (!text.isEmpty()) {
                         return new Outcome.Answer(text);
@@ -178,6 +180,11 @@ public class OpenCodeAgentClient {
                         return new Outcome.Error(error.toString());
                     }
                     log.debug("ignoring a finished message without text id='{}'", messageId);
+                } else if (isNew && finished) {
+                    // The `question` tool is one of these steps: skip it so the
+                    // answer -> question -> result sequence lands on the text step.
+                    log.debug("ignoring a tool-call step id='{}' finish='{}' until the turn's final step",
+                            messageId, textOf(message, "finish"));
                 }
             }
 
@@ -475,6 +482,11 @@ public class OpenCodeAgentClient {
         } catch (JacksonException e) {
             throw new RuntimeException("Failed to serialize OpenCode payload", e);
         }
+    }
+
+    /** A step that stopped to run a tool; the turn continues with the tool result. */
+    private static boolean isToolCallStep(JsonNode message) {
+        return "tool-calls".equals(textOf(message, "finish"));
     }
 
     private static String textOf(JsonNode node, String field) {

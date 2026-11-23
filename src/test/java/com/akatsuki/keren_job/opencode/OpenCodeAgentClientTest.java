@@ -36,6 +36,7 @@ class OpenCodeAgentClientTest {
     private volatile boolean messagesAvailable;
     private volatile boolean formPending;
     private volatile boolean toolMessageFirst;
+    private volatile boolean narratedToolMessageFirst;
     private volatile String errorMessageJson;
     private volatile String formJson = "{}";
     private final java.util.concurrent.atomic.AtomicInteger messageCalls =
@@ -129,6 +130,19 @@ class OpenCodeAgentClientTest {
     @DisplayName("a finished step without text is skipped until the text step arrives")
     void finishedStepWithoutTextIsSkipped() {
         toolMessageFirst = true;
+        messagesAvailable = true;
+
+        Outcome outcome = client.await("ses_test", null);
+
+        assertThat(outcome).isInstanceOf(Outcome.Answer.class);
+        assertThat(((Outcome.Answer) outcome).text()).isEqualTo("found jobs");
+        assertThat(messageCalls.get()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("a narrated tool-call step is not returned as the answer")
+    void narratedToolCallStepIsSkipped() {
+        narratedToolMessageFirst = true;
         messagesAvailable = true;
 
         Outcome outcome = client.await("ses_test", null);
@@ -247,6 +261,16 @@ class OpenCodeAgentClientTest {
                     return;
                 }
                 int call = messageCalls.getAndIncrement();
+                if (narratedToolMessageFirst && call == 0) {
+                    send(exchange, 200, """
+                            {"data":[{"id":"msg_narration","type":"assistant","finish":"tool-calls",
+                            "content":[{"type":"text","text":"I'll narrow the results."},
+                            {"type":"tool","tool":"webfetch"}],
+                            "time":{"completed":1}}],
+                            "cursor":{"previous":null,"next":null}}
+                            """);
+                    return;
+                }
                 if (toolMessageFirst && call == 0) {
                     send(exchange, 200, """
                             {"data":[{"id":"msg_tool","type":"assistant","finish":"tool-calls",
